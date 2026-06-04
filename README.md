@@ -2,7 +2,12 @@
 
 Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung berbagai dialek daerah. Warga bisa kirim aduan dalam bahasa daerah — sistem secara otomatis mendeteksi dialek, menerjemahkan ke Bahasa Indonesia, meringkas, dan menentukan tingkat urgensi.
 
-## 
+## Contributors
+- Fadhlan Nur Rachman (2802491690)
+-
+-
+-
+-
 
 ## Tech Stack
 
@@ -52,23 +57,6 @@ Sovereign-Dialect-Bridge/
 └── experiment/               Dataset dan notebook NLP (tidak dipakai runtime)
 ```
 
-## API Overview
-
-Semua response mengikuti format universal:
-```json
-{ "success": true,  "data": { ... }, "message": "..." }
-{ "success": false, "data": null,    "message": "...", "errors": { ... } }
-```
-
-| Prefix | Keterangan |
-|--------|-----------|
-| `POST /api/auth/register/` | Daftar akun baru |
-| `POST /api/auth/login/` | Login, dapat JWT |
-| `GET/POST /api/complaints/` | List aduan / kirim aduan baru |
-| `GET /api/complaints/map/` | Data titik peta (public) |
-| `GET /api/categories/` | Daftar kategori (public) |
-| `GET /api/dashboard/stats/` | Statistik admin |
-
 ## Setup Lokal
 
 ```bash
@@ -89,10 +77,4 @@ npm run dev                         # http://localhost:3000
 
 Lihat `backend/README.md` untuk panduan lengkap backend termasuk troubleshooting.
 
-## Deploy
-
-- **Backend** → Railway: set root directory ke `backend`, tambahkan env vars, auto-deploy dari GitHub
-- **Frontend** → Vercel: set root directory ke `frontend`, tambahkan `NEXT_PUBLIC_API_URL`
-- **Database** → Supabase: gunakan Session Pooler URI untuk `DATABASE_URL`
-
-Panduan lengkap: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+Made with <3 Group 7
