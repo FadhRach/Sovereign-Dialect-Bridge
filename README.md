@@ -3,21 +3,22 @@
 Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung berbagai dialek daerah. Warga bisa kirim aduan dalam bahasa daerah — sistem secara otomatis mendeteksi dialek, menerjemahkan ke Bahasa Indonesia, meringkas, dan menentukan tingkat urgensi.
 
 ## Contributors
+
 - Fadhlan Nur Rachman (2802491690)
--
+- Dian Rakhmawati Lestari (2802539085)
 -
 -
 -
 
 ## Tech Stack
 
-| Layer | Teknologi | Deploy |
-|-------|-----------|--------|
-| Backend | Django 4.2 + DRF + SimpleJWT | Hugging Face Spaces |
-| Frontend | Next.js 14 + TypeScript + Tailwind CSS | Vercel |
-| Database | PostgreSQL (Supabase) | Supabase |
-| Storage | Cloudinary (opsional) | Cloudinary |
-| NLP | mT5, IndoBERT, langdetect | Disabled (planned) |
+| Layer    | Teknologi                              | Deploy              |
+| -------- | -------------------------------------- | ------------------- |
+| Backend  | Django 4.2 + DRF + SimpleJWT           | Hugging Face Spaces |
+| Frontend | Next.js 14 + TypeScript + Tailwind CSS | Vercel              |
+| Database | PostgreSQL (Supabase)                  | Supabase            |
+| Storage  | Cloudinary (opsional)                  | Cloudinary          |
+| NLP      | mT5, IndoBERT, langdetect              | Disabled (planned)  |
 
 ## Fitur Utama
 
