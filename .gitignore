@@ -70,3 +70,6 @@ docs/
 # CLAUDE
 CLAUDE.md
 .claude
+
+# Deploy Path
+sovereign-dialect-bridge-api

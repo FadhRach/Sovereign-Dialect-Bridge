@@ -16,14 +16,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Collectstatic di build time — SECRET_KEY dan DATABASE_URL dummy hanya untuk
-# pass Django checks. Nilai asli diinjeksi Railway saat runtime.
+# pass Django checks. Nilai asli diset di HF Space Secrets saat runtime.
 RUN SECRET_KEY=build-only DEBUG=True DATABASE_URL=sqlite:///tmp.db \
     python manage.py collectstatic --noinput
 
-# Railway inject $PORT otomatis. Migrate jalan duluan agar schema selalu sync.
+EXPOSE 7860
+
+# Migrate jalan duluan agar schema selalu sync dengan Supabase.
 CMD python manage.py migrate --noinput && \
     gunicorn config.wsgi:application \
-    --bind 0.0.0.0:${PORT:-8000} \
+    --bind 0.0.0.0:7860 \
     --workers 2 \
     --threads 2 \
     --timeout 120 \

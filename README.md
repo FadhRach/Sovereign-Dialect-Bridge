@@ -13,7 +13,7 @@ Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung berba
 
 | Layer | Teknologi | Deploy |
 |-------|-----------|--------|
-| Backend | Django 4.2 + DRF + SimpleJWT | Render |
+| Backend | Django 4.2 + DRF + SimpleJWT | Hugging Face Spaces |
 | Frontend | Next.js 14 + TypeScript + Tailwind CSS | Vercel |
 | Database | PostgreSQL (Supabase) | Supabase |
 | Storage | Cloudinary (opsional) | Cloudinary |
@@ -37,7 +37,7 @@ Sovereign-Dialect-Bridge/
 │   ├── complaints/           Complaint CRUD, kategori, status, NLP trigger
 │   ├── nlp/                  NLP pipeline (dialect → translate → summarize → NER)
 │   ├── config/               Django settings, root URLs, WSGI
-│   ├── Dockerfile            Image untuk Render
+│   ├── Dockerfile            Image untuk Hugging Face Spaces (port 7860)
 │   └── requirements.txt      Python dependencies (tanpa NLP berat)
 │
 ├── frontend/                 Next.js 14 App
@@ -52,7 +52,7 @@ Sovereign-Dialect-Bridge/
 │           ├── auth.ts       JWT decode & localStorage helpers
 │           └── types.ts      TypeScript types bersama
 │
-└── render.yaml               Konfigurasi deploy Render
+└── backend/railway.json      Config lama (tidak dipakai, dibiarkan untuk referensi)
 ```
 
 ## Setup Lokal
@@ -77,8 +77,10 @@ Lihat `backend/README.md` untuk panduan lengkap backend termasuk troubleshooting
 
 ## Deploy
 
-- **Backend** → Render: `render.yaml` sudah dikonfigurasi, tinggal connect repo dan set env vars
-- **Frontend** → Vercel: set root directory ke `frontend`, set `NEXT_PUBLIC_API_URL` ke domain Render **sebelum** deploy
+- **Backend** → [Hugging Face Spaces](https://huggingface.co/new-space): buat Space baru (Docker SDK), push isi `backend/` ke Space repo, set Secrets di Settings. App listen di port `7860`.
+- **Frontend** → Vercel: set root directory ke `frontend`, set `NEXT_PUBLIC_API_URL` ke domain HF Space **sebelum** deploy
 - **Database** → Supabase: gunakan **Session Pooler URI** untuk `DATABASE_URL`
+
+Panduan lengkap: `docs/DEPLOYMENT.md`
 
 Made with <3 Group 7
