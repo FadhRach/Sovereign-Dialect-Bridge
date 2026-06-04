@@ -6,7 +6,7 @@ Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung berba
 
 - Fadhlan Nur Rachman (2802491690)
 - Dian Rakhmawati Lestari (2802539085)
--
+- Matthew Ken Susanto (2802407736)
 -
 -
 
