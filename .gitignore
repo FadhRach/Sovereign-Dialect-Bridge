@@ -64,7 +64,7 @@ logs/
 
 .github
 
-# Docs lokal saja, tidak perlu di repo
+# Lokal saja, tidak perlu di repo
 docs/
 
 # CLAUDE
