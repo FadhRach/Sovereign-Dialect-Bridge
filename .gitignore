@@ -1,0 +1,72 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+!.env.local.example
+*.pem
+*.key
+*.crt
+credentials.json
+service-account*.json
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Django
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+backend/staticfiles/
+backend/media/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Model & dataset besar
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+models/
+!models/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
+
+.github
+
+# Docs lokal saja, tidak perlu di repo
+docs/
+
+# CLAUDE
+CLAUDE.md
+.claude

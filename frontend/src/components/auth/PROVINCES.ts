@@ -1,0 +1,11 @@
+/** Daftar 38 provinsi Indonesia (per pemekaran 2022). Match dengan choices di CustomUser. */
+export const PROVINCES = [
+  "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Kepulauan Riau",
+  "Jambi", "Sumatera Selatan", "Kepulauan Bangka Belitung", "Bengkulu", "Lampung",
+  "DKI Jakarta", "Jawa Barat", "Banten", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur",
+  "Bali", "Nusa Tenggara Barat", "Nusa Tenggara Timur",
+  "Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan", "Kalimantan Timur", "Kalimantan Utara",
+  "Sulawesi Utara", "Gorontalo", "Sulawesi Tengah", "Sulawesi Barat", "Sulawesi Selatan", "Sulawesi Tenggara",
+  "Maluku", "Maluku Utara",
+  "Papua Barat", "Papua Barat Daya", "Papua Tengah", "Papua Pegunungan", "Papua Selatan", "Papua",
+] as const;
