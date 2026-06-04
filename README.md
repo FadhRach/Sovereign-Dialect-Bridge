@@ -13,11 +13,11 @@ Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung berba
 
 | Layer | Teknologi | Deploy |
 |-------|-----------|--------|
-| Backend | Django 4.2 + DRF + SimpleJWT | Railway |
+| Backend | Django 4.2 + DRF + SimpleJWT | Render |
 | Frontend | Next.js 14 + TypeScript + Tailwind CSS | Vercel |
 | Database | PostgreSQL (Supabase) | Supabase |
 | Storage | Cloudinary (opsional) | Cloudinary |
-| NLP | mT5, IndoBERT, langdetect | Background thread |
+| NLP | mT5, IndoBERT, langdetect | Disabled (planned) |
 
 ## Fitur Utama
 
@@ -37,8 +37,7 @@ Sovereign-Dialect-Bridge/
 │   ├── complaints/           Complaint CRUD, kategori, status, NLP trigger
 │   ├── nlp/                  NLP pipeline (dialect → translate → summarize → NER)
 │   ├── config/               Django settings, root URLs, WSGI
-│   ├── Dockerfile            Image untuk Railway
-│   ├── railway.json          Konfigurasi deploy Railway
+│   ├── Dockerfile            Image untuk Render
 │   └── requirements.txt      Python dependencies (tanpa NLP berat)
 │
 ├── frontend/                 Next.js 14 App
@@ -53,8 +52,7 @@ Sovereign-Dialect-Bridge/
 │           ├── auth.ts       JWT decode & localStorage helpers
 │           └── types.ts      TypeScript types bersama
 │
-├── docs/                     Deployment runbook
-└── experiment/               Dataset dan notebook NLP (tidak dipakai runtime)
+└── render.yaml               Konfigurasi deploy Render
 ```
 
 ## Setup Lokal
@@ -76,5 +74,11 @@ npm run dev                         # http://localhost:3000
 ```
 
 Lihat `backend/README.md` untuk panduan lengkap backend termasuk troubleshooting.
+
+## Deploy
+
+- **Backend** → Render: `render.yaml` sudah dikonfigurasi, tinggal connect repo dan set env vars
+- **Frontend** → Vercel: set root directory ke `frontend`, set `NEXT_PUBLIC_API_URL` ke domain Render **sebelum** deploy
+- **Database** → Supabase: gunakan **Session Pooler URI** untuk `DATABASE_URL`
 
 Made with <3 Group 7
