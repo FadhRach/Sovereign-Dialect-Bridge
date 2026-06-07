@@ -181,8 +181,8 @@ export default function AdminPage() {
         {/* Charts row */}
         {stats && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <WeeklyTrendChart weekly={stats.weekly_trend} />
-            <CategoryDonut categories={stats.by_category} />
+            <WeeklyTrendChart weekly={stats.weekly_trend ?? []} />
+            <CategoryDonut categories={stats.by_category ?? []} />
           </div>
         )}
 

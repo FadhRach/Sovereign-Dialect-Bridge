@@ -8,10 +8,11 @@
 
 import { CATEGORY_PALETTE, formatWeekLabel } from "./constants";
 
-export function WeeklyTrendChart({ weekly }: { weekly: { week: string; count: number }[] }) {
-  const maxTrend = Math.max(...(weekly?.map((w) => w.count) ?? [1]), 1);
-  const total = weekly.reduce((s, w) => s + w.count, 0);
-  const isEmpty = weekly.length === 0 || weekly.every((w) => w.count === 0);
+export function WeeklyTrendChart({ weekly }: { weekly?: { week: string; count: number }[] }) {
+  const safeWeekly = weekly ?? [];
+  const maxTrend = Math.max(...(safeWeekly.map((w) => w.count) ?? [1]), 1);
+  const total = safeWeekly.reduce((s, w) => s + w.count, 0);
+  const isEmpty = safeWeekly.length === 0 || safeWeekly.every((w) => w.count === 0);
 
   return (
     <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
@@ -25,14 +26,14 @@ export function WeeklyTrendChart({ weekly }: { weekly: { week: string; count: nu
         <p className="text-sm text-gray-400 text-center py-8">Belum ada data tren</p>
       ) : (
         <div className="flex items-end gap-2 h-36">
-          {weekly.map((w, i) => (
+          {safeWeekly.map((w, i) => (
             <div key={w.week} className="flex-1 flex flex-col items-center gap-1 min-w-0 group">
               <span className="text-[10px] text-gray-500 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
                 {w.count}
               </span>
               <div
                 className={`w-full rounded-t-lg transition-all duration-500 ease-out hover:opacity-100 ${
-                  i === weekly.length - 1 ? "bg-[#2563EB]" : "bg-[#2563EB]/60"
+                  i === safeWeekly.length - 1 ? "bg-[#2563EB]" : "bg-[#2563EB]/60"
                 }`}
                 style={{ height: `${Math.max((w.count / maxTrend) * 110, 6)}px` }}
               />
@@ -47,8 +48,8 @@ export function WeeklyTrendChart({ weekly }: { weekly: { week: string; count: nu
   );
 }
 
-export function CategoryDonut({ categories }: { categories: { name: string; count: number }[] }) {
-  if (categories.length === 0) {
+export function CategoryDonut({ categories }: { categories?: { name: string; count: number }[] }) {
+  if (!categories || categories.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <h2 className="text-sm font-bold text-[#1E2A4A] mb-4">Distribusi Kategori</h2>
