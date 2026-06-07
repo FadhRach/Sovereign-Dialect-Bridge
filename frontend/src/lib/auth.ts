@@ -5,7 +5,7 @@
  * strict CSP + sanitasi input + tidak render HTML mentah dari user.
  */
 
-import type { UserRole } from "./types";
+import type { UserRole } from "@/types";
 
 const ACCESS_KEY = "access_token";
 const REFRESH_KEY = "refresh_token";

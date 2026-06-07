@@ -31,3 +31,9 @@ staticfiles/
 .gitignore
 .idea/
 .vscode/
+
+# Model berat — JANGAN masuk Docker image (bisa 3+ GB).
+# mT5-base pull dari HF Hub saat runtime via MT5_MODEL_PATH env var.
+# NLLB + NER pull otomatis dari HF Hub saat warmup.
+# Dialect detector (~5 MB) BOLEH ikut karena kecil — tidak di-exclude.
+models/mt5base/

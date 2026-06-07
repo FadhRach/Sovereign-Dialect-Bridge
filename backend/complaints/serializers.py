@@ -41,7 +41,7 @@ class ComplaintListSerializer(serializers.ModelSerializer):
         model = Complaint
         fields = [
             "id", "user", "category", "wilayah", "status", "urgency_level",
-            "detected_dialect", "summary", "created_at",
+            "detected_dialect", "summary", "processing_stage", "created_at",
         ]
 
 

@@ -1,23 +1,31 @@
 # src/components
 
-Komponen React, dikelompokkan per-domain. Aturan: komponen >100 baris harus dipecah jadi sub-komponen (CLAUDE.md §8.3).
+Komponen React dipisah berdasarkan **konteks**, bukan tipe:
 
-| Folder       | Isi |
-|--------------|-----|
-| `auth/`      | `AuthProvider` (context global), `RegisterForm`, `AddressSection`, `PasswordStrength`, `FormField`, `PROVINCES.ts` |
-| `complaint/` | `ComplaintCard`, `ComplaintForm`, `NLPResultCard`, `StatusBadge` |
-| `layout/`    | `Navbar`, `Sidebar` |
-| `map/`       | `ComplaintMap` (wajib `dynamic(..., { ssr: false })`) |
-| `shared/`    | `LoadingSpinner`, `ErrorAlert` |
-| `ui/`        | Primitif (sementara native Tailwind; placeholder untuk shadcn/ui) |
+| Folder         | Isi & aturan |
+|----------------|--------------|
+| `ui/`          | **Primitif** — Button, Input, Card, Alert, Spinner, Skeleton, dll. Tidak boleh tahu shape domain (`Complaint`, `User`). Boleh dipakai project mana saja. |
+| `features/`    | **Komponen specific domain**, satu folder per fitur: `auth/`, `complaint/`, `map/`. Boleh import dari `ui/` + `lib/` + `types/`. |
+| `layout/`      | **Navigation/shell**: Navbar, AdminSidebar, NotificationBell. |
 
-## Pattern Penting
+> Komponen private milik satu route → letakkan di `app/<route>/_components/`.
+> Folder `_components` di-skip oleh router Next.js, jadi tidak jadi URL.
 
-- **`AuthProvider`** dipasang sekali di `app/layout.tsx`. Konsumsi via `useAuth()` (alias `useAuthContext`).
-- **Form** memakai primitive di `auth/FormField.tsx` (`FormInput`, `FormSelect`) untuk konsistensi style + label.
-- **Leaflet** WAJIB di-import dynamic karena butuh `window` (lihat `map/ComplaintMap.tsx`).
+## Aturan penting
 
-## Extending
+1. **Sebelum bikin komponen baru**: cek `ui/` apakah primitif yang dibutuhkan sudah ada.
+2. **`use client` seminimal mungkin**. Default Server Component. Tambahkan `"use client"` hanya jika butuh state/hook/event handler.
+3. **Komponen >250 baris** harus dipecah jadi sub-component.
+4. **Leaflet** wajib via `dynamic(..., { ssr: false })` — lihat `features/map/ComplaintMap.tsx`.
 
-- Komponen baru spesifik domain → buat folder per domain, jangan dumping di `shared/`.
-- State global selain auth → pertimbangkan zustand/jotai sebelum bikin Context baru (hindari prop drilling tapi jangan over-engineer).
+## Pattern auth
+
+- `AuthProvider` dipasang sekali di `app/layout.tsx` (Server) sebagai client island.
+- Konsumsi via `useAuth()` (alias `useAuthContext`) dari `@/components/features/auth/AuthProvider`.
+- `AuthGate` (`@/components/features/auth/AuthGate`) → client island untuk redirect kalau belum login. Dipakai di `(main)/layout.tsx`.
+
+## Adding a new feature
+
+1. Buat folder: `components/features/<nama-fitur>/`.
+2. Komponen yang reusable di feature itu masuk situ.
+3. Komponen private milik 1 page-saja → masuk `app/<route>/_components/` (bukan ke features).

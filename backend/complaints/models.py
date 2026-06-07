@@ -20,6 +20,7 @@ class Complaint(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
         ("in_review", "In Review"),
+        ("in_progress", "In Progress"),
         ("resolved", "Resolved"),
         ("rejected", "Rejected"),
     ]
@@ -55,6 +56,11 @@ class Complaint(models.Model):
     keywords = models.JSONField(default=list)
     urgency_level = models.CharField(max_length=10, choices=URGENCY_CHOICES, default="medium")
     nlp_confidence = models.FloatField(default=0.0)
+
+    # Tahapan progres pipeline NLP — frontend polling baca field ini
+    # queued -> detecting -> translating -> summarizing -> extracting -> done|failed
+    processing_stage = models.CharField(max_length=20, default="queued")
+    processing_error = models.TextField(blank=True, null=True)
 
     # Status dan tracking
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="pending")
@@ -106,3 +112,25 @@ class StatusHistory(models.Model):
 
     def __str__(self):
         return f"Complaint #{self.complaint_id}: {self.old_status} → {self.new_status}"
+
+
+class Notification(models.Model):
+    """Notifikasi user — dibuat saat status aduan berubah."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
+    )
+    complaint = models.ForeignKey(
+        Complaint, on_delete=models.CASCADE, related_name="notifications", null=True, blank=True
+    )
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["user", "is_read"])]
+
+    def __str__(self):
+        return f"Notification #{self.id} → {self.user_id}"

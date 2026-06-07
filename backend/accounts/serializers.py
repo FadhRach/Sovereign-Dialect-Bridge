@@ -40,12 +40,12 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = [
-            "id", "full_name", "email", "phone", "role",
+            "id", "full_name", "email", "phone", "role", "is_active",
             "address_street", "address_kelurahan", "address_kecamatan",
             "address_city", "address_province", "address_postal_code",
             "date_joined", "updated_at",
         ]
-        read_only_fields = ["id", "email", "role", "date_joined", "updated_at"]
+        read_only_fields = ["id", "email", "role", "is_active", "date_joined", "updated_at"]
 
 
 class ChangePasswordSerializer(serializers.Serializer):

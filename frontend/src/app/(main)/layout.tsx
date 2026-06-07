@@ -1,37 +1,14 @@
-"use client";
+import AuthGate from "@/components/features/auth/AuthGate";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
-import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { useAuth } from "@/hooks/useAuth";
-
+/**
+ * Layout induk untuk semua route protected.
+ *
+ * Sengaja dibikin Server Component (tanpa "use client") — supaya halaman
+ * child yang Server Component tidak ikut terbawa ke client bundle.
+ * Auth check di-handle oleh AuthGate (client island). Navbar di-render
+ * di nested layout (user)/layout.tsx — admin route punya layout sendiri
+ * tanpa Navbar (pakai AdminSidebar).
+ */
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/login");
-    }
-  }, [isLoading, isAuthenticated, router]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" label="Memuat..." />
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <Navbar />
-      <main className="flex-1 container mx-auto px-4 py-6 max-w-5xl">{children}</main>
-    </div>
-  );
+  return <AuthGate>{children}</AuthGate>;
 }

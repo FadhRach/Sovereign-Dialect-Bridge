@@ -1,4 +1,4 @@
-# Environment & secrets
+# SECRETS & ENVIRONMENT
 .env
 .env.*
 !.env.example
@@ -10,7 +10,7 @@ credentials.json
 service-account*.json
 secrets/
 
-# Python
+# PYTHON
 __pycache__/
 *.py[cod]
 *$py.class
@@ -22,54 +22,74 @@ env/
 .coverage
 htmlcov/
 
-# Django
+# DJANGO
 *.sqlite3
 *.sqlite3-journal
 db.sqlite3
 backend/staticfiles/
 backend/media/
 
-# Node / Next.js
+# NODE / NEXT.JS
 node_modules/
 .next/
 out/
 .vercel/
 *.tsbuildinfo
 
-# Model & dataset besar
-*.gguf
+# MODEL BERAT — TIDAK BOLEH MASUK GIT (ukuran > 100 MB)
+# Semua model di-host di HF Hub, auto-pull saat deploy.
+# Dialect detector (4.7 MB) BOLEH masuk git karena kecil.
+
+# Format file model neural network (semua ukuran > 100 MB)
 *.safetensors
+*.gguf
 *.bin
 *.pt
 *.pth
 *.onnx
+
+# Folder models/ (kecuali dialect_detector yang kecil)
 models/
 !models/.gitkeep
+!models/dialect_detector/
+backend/models/mt5base/
 
-# OS
+# Model di folder experiment
+experiment/model/
+experiment/dialect_detector/
+
+# DATASET BESAR — TIDAK BOLEH MASUK GIT
+# Dataset di-simpan lokal / HF Hub / Google Drive saja.
+experiment/dataset/indosum/
+experiment/dataset/nusax/
+experiment/dataset/*.jsonl
+experiment/dataset/*.parquet
+experiment/dataset/*.csv
+*.jsonl
+*.parquet
+
+# OS & EDITOR
 .DS_Store
+**/.DS_Store
 Thumbs.db
-
-# IDE
 .vscode/
 .idea/
 *.swp
+*.swo
 
-# Jupyter
+# JUPYTER
 .ipynb_checkpoints/
 
-# Logs
+# LOGS
 *.log
 logs/
 
-.github
-
-# Lokal saja, tidak perlu di repo
+# LOKAL SAJA — tidak perlu di repo publik
 docs/
-
-# CLAUDE
+.github
 CLAUDE.md
 .claude
 
-# Deploy Path
+# DEPLOY ARTIFACTS
+# Folder clone HF Space (kalau ada di root monorepo)
 sovereign-dialect-bridge-api

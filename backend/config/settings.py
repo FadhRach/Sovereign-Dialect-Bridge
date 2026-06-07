@@ -76,9 +76,15 @@ WSGI_APPLICATION = "config.wsgi.application"
 # -----------------------------------------------------------------------------
 # Database — DATABASE_URL diparse otomatis oleh django-environ.
 # Local dev bisa pakai sqlite: DATABASE_URL=sqlite:///db.sqlite3
-# Production pakai Supabase Postgres.
+# Production pakai Supabase Postgres via Session Pooler.
+#
+# CONN_MAX_AGE 60 detik = persistent connection per worker (kurangi TCP+TLS
+# handshake ~50-200 ms per request). CONN_HEALTH_CHECKS hindari pakai koneksi
+# basi setelah Supabase auto-pause / restart.
 # -----------------------------------------------------------------------------
 DATABASES = {"default": env.db("DATABASE_URL")}
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -97,6 +103,8 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Cache aset hashed selama 1 tahun (immutable). Aman karena whitenoise hash file.
+WHITENOISE_MAX_AGE = 60 * 60 * 24 * 365
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -145,6 +153,10 @@ REST_FRAMEWORK = {
         "user": "120/min",
         "auth": "10/min",
     },
+    # Catatan: kami pakai hard-cap manual (slicing queryset) ketimbang DRF
+    # PageNumberPagination supaya kontrak response tetap `{success, data, message}`
+    # tanpa wrapper `{count, next, previous, results}`. Limit per view didefinisikan
+    # sebagai class attribute (MAX_LIST_SIZE / MAX_POINTS / MAX_ROWS).
 }
 
 # -----------------------------------------------------------------------------
@@ -162,8 +174,9 @@ SIMPLE_JWT = {
 }
 
 # -----------------------------------------------------------------------------
-# Production security — aktif saat DEBUG=False (Railway/Vercel).
-# Railway terminate SSL di proxy, jadi kita percaya X-Forwarded-Proto.
+# Production security — aktif saat DEBUG=False.
+# Hugging Face Spaces (dan Vercel/proxy lain) terminate SSL di edge, jadi kita
+# percaya header X-Forwarded-Proto untuk deteksi HTTPS.
 # -----------------------------------------------------------------------------
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

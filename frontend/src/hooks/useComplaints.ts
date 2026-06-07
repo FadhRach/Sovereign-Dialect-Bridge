@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import api from "@/lib/api";
-import type { Complaint, ApiResponse } from "@/lib/types";
+import type { Complaint, ApiResponse } from "@/types";
 
 interface UseComplaintsOptions {
   status?: string;
@@ -56,12 +56,16 @@ export function useComplaintDetail(id: number) {
 
   useEffect(() => {
     fetch();
-    // Polling setiap 3 detik selama summary belum tersedia (NLP masih diproses)
-    const interval = setInterval(() => {
-      if (complaint && !complaint.summary) fetch();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [fetch, complaint]);
+  }, [fetch]);
+
+  // Polling 2 detik sampai pipeline NLP selesai (stage = done) atau gagal
+  useEffect(() => {
+    if (!complaint) return;
+    const stage = complaint.processing_stage;
+    if (stage === "done" || stage === "failed") return;
+    const t = setInterval(fetch, 2000);
+    return () => clearInterval(t);
+  }, [complaint, fetch]);
 
   return { complaint, isLoading, error, refetch: fetch };
 }
