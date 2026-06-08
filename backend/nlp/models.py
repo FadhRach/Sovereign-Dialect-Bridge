@@ -3,8 +3,8 @@ Lazy model loader untuk NLP pipeline.
 
 Aturan:
   1. Boot Django HARUS cepat — model load di background thread, tidak block listen port.
-  2. Thread-safe — jika request datang sebelum warmup selesai, request thread
-     ambil lock dan tunggu sampai model siap. Tidak ada double-load.
+  2. Thread-safe — `get()` blocking dengan lock jika memang dipakai, sedangkan
+     `get_if_loaded()` non-blocking untuk request pipeline yang harus cepat.
   3. Idempotent — load_models() / get_*() boleh dipanggil berkali-kali.
   4. Graceful fallback — jika satu model gagal load (RAM kurang, network putus),
      model lain tetap dipakai dan pipeline pakai fallback chain.
@@ -16,7 +16,9 @@ Pemakaian:
     loader.start_warmup()
 
     # Di pipeline.py (saat request):
-    clf = loader.get(ModelKind.DIALECT)         # tunggu sampai siap
+    clf = loader.get(ModelKind.DIALECT)         # dialect kecil, boleh blocking
+    mt5 = loader.get_if_loaded(ModelKind.MT5)   # model berat, non-blocking
+    indot5 = loader.get_if_loaded(ModelKind.INDOT5)
     if clf is None: ...                          # gagal load, pakai fallback
 """
 
@@ -39,6 +41,7 @@ class ModelKind(str, Enum):
     DIALECT = "dialect"
     NLLB = "nllb"
     MT5 = "mt5"
+    INDOT5 = "indot5"
     NER = "ner"
 
 
@@ -47,9 +50,12 @@ class _ModelSlot:
     """Wadah satu model + state-nya."""
     instance: Any = None
     tokenizer: Any = None        # untuk seq2seq (NLLB, mT5)
+    loading: bool = False
     loaded: bool = False
     failed: bool = False
     load_ms: int = 0
+    started_at: float = 0.0
+    error: str = ""
 
 
 class _Loader:
@@ -104,30 +110,60 @@ class _Loader:
         self.get(kind)  # pastikan ter-load
         return self._slots[kind].tokenizer
 
+    def get_if_loaded(self, kind: ModelKind) -> Optional[Any]:
+        """Return model hanya jika sudah loaded, tanpa trigger blocking load."""
+        slot = self._slots[kind]
+        return slot.instance if slot.loaded else None
+
+    def get_tokenizer_if_loaded(self, kind: ModelKind) -> Optional[Any]:
+        """Return tokenizer hanya jika model sudah loaded, tanpa blocking."""
+        slot = self._slots[kind]
+        return slot.tokenizer if slot.loaded else None
+
     def status(self) -> dict[str, dict]:
         """Snapshot status semua model — untuk health/debug endpoint."""
-        return {
-            kind.value: {
-                "loaded": self._slots[kind].loaded,
-                "failed": self._slots[kind].failed,
-                "load_ms": self._slots[kind].load_ms,
+        snapshot = {}
+        for kind in ModelKind:
+            slot = self._slots[kind]
+            elapsed_ms = slot.load_ms
+            if slot.loading and slot.started_at:
+                elapsed_ms = int((time.monotonic() - slot.started_at) * 1000)
+            snapshot[kind.value] = {
+                "loading": slot.loading,
+                "loaded": slot.loaded,
+                "failed": slot.failed,
+                "load_ms": slot.load_ms,
+                "elapsed_ms": elapsed_ms,
+                "error": slot.error,
             }
-            for kind in ModelKind
-        }
+        return snapshot
 
     # ─── Background warmup ───────────────────────────────────────────────────
 
     def _warmup_all(self) -> None:
         """Load semua model satu per satu di thread terpisah.
 
-        Urutan: ringan dulu (dialect) → berat (NLLB, mT5) → medium (NER).
-        Tujuannya dialect detector langsung siap; kalau request masuk dengan teks
-        Bahasa Indonesia (tidak butuh translate/summarize neural), tidak perlu tunggu.
+        Urutan: ringan dulu (dialect) → NER lokal/baked → model berat.
+        NER sengaja sebelum NLLB/mT5 supaya dashboard tidak terlihat "pending"
+        lama untuk semua model saat model berat masih download/load.
         """
-        for kind in [ModelKind.DIALECT, ModelKind.NLLB, ModelKind.MT5, ModelKind.NER]:
+        for kind in self._warmup_order():
             with self._locks[kind]:
                 if not self._slots[kind].loaded and not self._slots[kind].failed:
                     self._load_one(kind)
+
+    def _warmup_order(self) -> list[ModelKind]:
+        """Urutan warmup: model ringan dulu, summarizer sesuai env."""
+        order = [ModelKind.DIALECT, ModelKind.NER, ModelKind.NLLB]
+        summary_map = {
+            "mt5": ModelKind.MT5,
+            "indot5": ModelKind.INDOT5,
+        }
+        for name in config.WARMUP_SUMMARIZERS:
+            kind = summary_map.get(name)
+            if kind and kind not in order:
+                order.append(kind)
+        return order
 
     # ─── Per-model loaders ───────────────────────────────────────────────────
 
@@ -135,6 +171,10 @@ class _Loader:
         """Dispatch ke loader spesifik. CALLER MUST HOLD LOCK."""
         slot = self._slots[kind]
         t0 = time.monotonic()
+        slot.loading = True
+        slot.started_at = t0
+        slot.error = ""
+        logger.info("[nlp] %s loading started", kind.value)
         try:
             if kind == ModelKind.DIALECT:
                 self._load_dialect(slot)
@@ -142,6 +182,8 @@ class _Loader:
                 self._load_nllb(slot)
             elif kind == ModelKind.MT5:
                 self._load_mt5(slot)
+            elif kind == ModelKind.INDOT5:
+                self._load_indot5(slot)
             elif kind == ModelKind.NER:
                 self._load_ner(slot)
             slot.loaded = True
@@ -150,7 +192,10 @@ class _Loader:
         except Exception as e:
             slot.failed = True
             slot.load_ms = int((time.monotonic() - t0) * 1000)
+            slot.error = str(e)[:300]
             logger.warning("[nlp] %s load FAILED in %d ms: %s", kind.value, slot.load_ms, e)
+        finally:
+            slot.loading = False
 
     def _load_dialect(self, slot: _ModelSlot) -> None:
         import joblib
@@ -189,6 +234,14 @@ class _Loader:
         slot.tokenizer = AutoTokenizer.from_pretrained(config.MT5_MODEL_PATH)
         slot.instance = AutoModelForSeq2SeqLM.from_pretrained(
             config.MT5_MODEL_PATH, low_cpu_mem_usage=True
+        )
+        slot.instance.eval()
+
+    def _load_indot5(self, slot: _ModelSlot) -> None:
+        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+        slot.tokenizer = AutoTokenizer.from_pretrained(config.INDOT5_MODEL_PATH)
+        slot.instance = AutoModelForSeq2SeqLM.from_pretrained(
+            config.INDOT5_MODEL_PATH, low_cpu_mem_usage=True
         )
         slot.instance.eval()
 

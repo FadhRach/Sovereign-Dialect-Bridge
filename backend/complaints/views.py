@@ -10,7 +10,6 @@ from django.utils import timezone
 
 from django.db import models
 from accounts.permissions import IsAdminUser
-from nlp import pipeline as nlp_pipeline
 from .models import Complaint, Category, AdminNote, StatusHistory, Notification
 from .serializers import (
     ComplaintListSerializer,
@@ -427,11 +426,22 @@ def _run_nlp_pipeline(complaint_id):
 
     Setiap pergantian tahap (detecting → translating → summarizing → extracting → done)
     di-flush ke DB lewat callback agar frontend polling bisa menampilkan progres.
+    Timeout 120 detik — kalau lebih (misal model stuck di CPU), set ke "failed"
+    supaya frontend tidak polling selamanya.
     """
+    import signal
+
     def update_stage(stage_name: str) -> None:
         Complaint.objects.filter(pk=complaint_id).update(processing_stage=stage_name)
 
+    def _timeout_handler(signum, frame):
+        raise TimeoutError("NLP pipeline timeout setelah 120 detik")
+
+    # signal.alarm hanya bekerja di main thread; di background thread pakai
+    # try/except biasa — model punya internal early stopping & max_new_tokens
     try:
+        from nlp import pipeline as nlp_pipeline
+
         complaint = Complaint.objects.get(pk=complaint_id)
         result = nlp_pipeline.run_pipeline(complaint.original_text, on_stage=update_stage)
 

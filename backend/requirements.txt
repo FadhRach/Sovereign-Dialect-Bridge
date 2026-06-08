@@ -33,13 +33,14 @@ django-cloudinary-storage==0.3.0
 torch==2.4.1                      # CPU inference; pin agar build cache stabil
 transformers==4.45.2              # NLLB + mT5 + NER pipeline
 sentencepiece==0.2.0              # tokenizer untuk mT5 + NLLB
+protobuf==4.25.3                  # dibutuhkan SentencePiece/mT5 tokenizer
 safetensors==0.4.5                # format file model (lebih cepat dari pickle)
 accelerate==1.0.1                 # low_cpu_mem_usage=True saat load model
 huggingface-hub==0.25.1           # auto-download model dari HF Hub
 
 # Dialect detector (joblib + sklearn-LR + TF-IDF)
 joblib==1.4.2
-scikit-learn==1.5.2
+scikit-learn==1.9.0                # harus match versi saat dialect_detector.joblib di-train
 
 # TextRank summarizer (fallback kalau mT5 tidak siap)
 networkx==3.3
@@ -50,6 +51,9 @@ deep-translator==1.11.4
 
 # Dialect detector fallback
 langdetect==1.0.9
+
+# Dashboard NLP testing
+rouge-score==0.1.2              # ROUGE-1/2/L untuk evaluasi summarizer
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Testing

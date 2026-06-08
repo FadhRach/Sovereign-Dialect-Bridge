@@ -7,7 +7,7 @@ input pengaduan
    │
    ▼ detect_dialect         ← joblib LogReg (4.7 MB) → langdetect → "xx"
    ▼ translate_to_indonesian ← NLLB-200-distilled (1.2 GB) → deep_translator → raw text
-   ▼ summarize              ← mT5-base NusaSum (2.2 GB, custom) → TextRank → 2 kalimat
+   ▼ summarize              ← configurable: mT5 / IndoT5 → NER/TextRank → 2 kalimat
    ▼ extract_entities       ← Cahya BERT NER (440 MB) → regex
    ▼ classify_category      ← keyword matching (no model)
    ▼ score_urgency          ← weighted keyword scoring (no model)
@@ -60,6 +60,11 @@ Edit `.env`:
 | `DATABASE_URL` | Supabase Dashboard → Database → Session Pooler URI |
 | `NLP_ENABLED` | `false` untuk dev cepat (fallback mode), `true` untuk full pipeline |
 | `MT5_MODEL_PATH` | (opsional) Path lokal atau HF Hub repo. Default: `backend/models/mt5base/` kalau ada |
+| `INDOT5_MODEL_PATH` | (opsional) Path lokal atau HF Hub repo. Default: `OinoVenv/sovereign-indot5-nusasum` |
+| `SUMMARIZER_MODEL` | Model utama: `mt5`, `indot5`, `textrank`, `ner`, atau `first_sentences` |
+| `SUMMARIZER_FALLBACKS` | Urutan fallback, default `ner,textrank,first_sentences` |
+| `WARMUP_SUMMARIZERS` | Model abstractive yang di-load untuk comparison, default `mt5,indot5` |
+| `HF_TOKEN` | Opsional untuk model download; wajib jika dashboard backend ingin stream HF runtime/build logs |
 
 ### 2.3 Migrate + runserver
 
@@ -70,7 +75,7 @@ python manage.py runserver   # → http://localhost:8000
 
 **Boot time:**
 - `NLP_ENABLED=false` (default): **<1 detik**, semua stage pakai fallback (akurasi sedikit menurun)
-- `NLP_ENABLED=true`: **<1 detik** untuk listen port, model load di background thread (~30-90 detik warmup). Request pertama yang butuh model tunggu sampai loaded; berikutnya instant.
+- `NLP_ENABLED=true`: **<1 detik** untuk listen port, model load di background thread. Jika request datang sebelum NLLB/mT5/NER siap, pipeline langsung pakai fallback cepat agar submit aduan tidak menggantung.
 
 ---
 
@@ -92,19 +97,19 @@ backend/nlp/
 
 1. **`loader.start_warmup()`** dipanggil dari `complaints/apps.py.ready()` saat Django boot.
    Spawn 1 background thread → load model satu per satu.
-2. **`loader.get(ModelKind.MT5)`** dipanggil dari pipeline saat request.
+2. Pipeline utama memakai **`loader.get_if_loaded(...)`** untuk model berat.
    - Kalau model sudah loaded → return instance, instant.
-   - Kalau belum (warmup belum sampai) → ambil lock, load di thread ini (blocking).
+   - Kalau belum (warmup belum sampai) → return `None` tanpa blocking → pakai fallback.
    - Kalau `NLP_ENABLED=false` → return `None` → pipeline auto-pakai fallback.
-3. Idempoten — `start_warmup()` aman dipanggil berkali-kali (Django autoreload, gunicorn preload).
+3. Idempoten — `start_warmup()` aman dipanggil berkali-kali. Untuk HF Space jangan pakai gunicorn `--preload`; warmup thread harus jalan di worker process.
 
 ### 3.3 Fallback chain per stage
 
 | Stage | Primary | Fallback 1 | Fallback 2 | Final |
 |-------|---------|------------|------------|-------|
 | Dialect | joblib LogReg (12 dialek) | langdetect | — | `"xx"` |
-| Translate | NLLB lokal (Flores-200) | deep_translator (Google) | googletrans | raw text |
-| Summarize | mT5-base NusaSum custom | TextRank (sklearn+networkx) | — | 2 kalimat pertama |
+| Translate | NLLB lokal (Flores-200) | deep_translator (opsional) | googletrans (opsional) | raw text |
+| Summarize | `SUMMARIZER_MODEL` (`mt5` / `indot5`) | NER extractive | TextRank | 2 kalimat pertama |
 | NER | Cahya BERT IndoBERT | regex (Jalan/Desa/Dinas/dll) | — | `[]` |
 | Category | keyword matching 8 kategori | — | — | `"Umum"` |
 | Urgency | weighted keyword scoring | — | — | `"low"` |
@@ -140,7 +145,7 @@ Strategi: upload ke **Hugging Face Hub** (gratis, unlimited public model repo).
 ```bash
 # 1. Generate HF token: https://huggingface.co/settings/tokens (Write access)
 # 2. Login lokal
-huggingface-cli login   # paste token
+hf auth login   # paste token
 
 # 3. Upload pakai script helper
 cd backend
@@ -155,16 +160,21 @@ Selesai → model live di `https://huggingface.co/<username>/sovereign-mt5-nusas
 HF Space → Settings → Secrets → tambah:
 ```
 MT5_MODEL_PATH = <username>/sovereign-mt5-nusasum
+INDOT5_MODEL_PATH = OinoVenv/sovereign-indot5-nusasum
+SUMMARIZER_MODEL = mt5
+SUMMARIZER_FALLBACKS = ner,textrank,first_sentences
+WARMUP_SUMMARIZERS = mt5,indot5
 NLP_ENABLED    = true
 ```
 
-Saat boot pertama, pipeline auto-pull model dari HF Hub ke `/data/huggingface` (persistent cache). Boot berikutnya pakai cache → fast.
+Saat runtime pertama, warmup thread auto-pull model dari HF Hub ke `/data/huggingface` (persistent cache). Build Docker hanya bake dependency dan model kecil yang aman; model besar tidak bisa "loaded" di build karena RAM runtime baru ada setelah container start.
 
 ### 4.3 Model lain (auto dari HF Hub)
 
 | Model | HF Hub ID | Size | Override env var |
 |-------|-----------|------|------------------|
 | NLLB | `facebook/nllb-200-distilled-600M` | 1.2 GB | `NLLB_MODEL_ID` |
+| IndoT5 | `OinoVenv/sovereign-indot5-nusasum` | sesuai checkpoint | `INDOT5_MODEL_PATH` |
 | NER | `cahya/bert-base-indonesian-NER` | 440 MB | `NER_MODEL_ID` |
 | Dialect | (local file `models/dialect_detector/`) | 4.7 MB | (di-bundle) |
 
@@ -203,8 +213,7 @@ print('Model status:', loader.status())
 "
 ```
 
-Pertama kali jalan: ~30-90 detik (download model dari HF Hub).
-Kedua dan seterusnya: ~5-15 detik (mT5 inference CPU).
+Pertama kali jalan sebelum warmup selesai akan memakai fallback cepat. Setelah model status `loaded`, mT5 inference CPU biasanya ~5-15 detik untuk teks pendek.
 
 ---
 

@@ -5,7 +5,7 @@ Upload mT5-base custom (fine-tuned NusaSum) ke Hugging Face Hub.
 Cara pakai:
 
     1. Generate HF token: https://huggingface.co/settings/tokens (Write access)
-    2. Login: `huggingface-cli login` (paste token)
+    2. Login: `hf auth login` (paste token)
     3. Jalankan:
        cd backend
        python scripts/upload_mt5_to_hf.py <hf-username> <repo-name>

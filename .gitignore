@@ -52,7 +52,12 @@ out/
 models/
 !models/.gitkeep
 !models/dialect_detector/
+!backend/models/
+backend/models/*
+!backend/models/dialect_detector/
+!backend/models/dialect_detector/**
 backend/models/mt5base/
+backend/models/ner_cahya/
 
 # Model di folder experiment
 experiment/model/
@@ -93,3 +98,5 @@ CLAUDE.md
 # DEPLOY ARTIFACTS
 # Folder clone HF Space (kalau ada di root monorepo)
 sovereign-dialect-bridge-api
+sovereign-mt5-nusasum
+sovereign-indot5-nusasum

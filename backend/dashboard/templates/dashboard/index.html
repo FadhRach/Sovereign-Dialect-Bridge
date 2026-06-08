@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dialect-Bridge — NLP Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .tab-active { border-bottom: 2px solid #2563EB; color: #2563EB; font-weight: 600; }
+    .log-line { font-family: monospace; font-size: 12px; padding: 2px 0; border-bottom: 1px solid #f1f5f9; white-space: pre-wrap; word-break: break-all; }
+    .log-warn { color: #b45309; }
+    .log-error { color: #dc2626; background: #fef2f2; }
+    .log-info { color: #1d4ed8; }
+    .score-bar { transition: width 0.5s ease-out; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+    .info-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; background: white; }
+    .info-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .02em; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-[#1E2A4A] text-white px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center text-sm font-bold">D</div>
+      <div>
+        <p class="font-bold text-sm leading-none">Dialect-Bridge</p>
+        <p class="text-blue-300 text-xs mt-0.5">NLP Testing Dashboard</p>
+      </div>
+    </div>
+    <div id="status-indicator" class="flex items-center gap-2 text-xs text-blue-200">
+      <span class="w-2 h-2 bg-gray-400 rounded-full" id="status-dot"></span>
+      <span id="status-text">Memeriksa status...</span>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="bg-white border-b border-gray-200 px-6 flex gap-6">
+    <button onclick="switchTab('pipeline')" id="tab-pipeline" class="py-3 text-sm tab-active">Pipeline Test</button>
+    <button onclick="switchTab('logs')" id="tab-logs" class="py-3 text-sm text-gray-500 hover:text-gray-800">Logs</button>
+    <button onclick="switchTab('models')" id="tab-models" class="py-3 text-sm text-gray-500 hover:text-gray-800">Model Status</button>
+    <button onclick="switchTab('info')" id="tab-info" class="py-3 text-sm text-gray-500 hover:text-gray-800">Pipeline Info</button>
+  </div>
+
+  <main class="max-w-5xl mx-auto p-6 space-y-6">
+
+    <!-- ── TAB: PIPELINE TEST ─────────────────────────────────────── -->
+    <div id="tab-content-pipeline">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <!-- Input -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h2 class="font-bold text-sm text-[#1E2A4A]">Input Teks Aduan</h2>
+
+          <div>
+            <label class="text-xs font-semibold text-gray-500 block mb-1">Teks aduan (bahasa apapun)</label>
+            <textarea id="input-text" rows="6"
+              class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+              placeholder="Contoh: Ning kopo teh sok macet wae jalanna sempit pisan..."></textarea>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold text-gray-500 block mb-1">
+              Teks referensi untuk ROUGE
+              <span class="text-gray-400 font-normal">(opsional — kalau kosong, pakai 3 kalimat pertama)</span>
+            </label>
+            <textarea id="input-reference" rows="3"
+              class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+              placeholder="Ringkasan ideal yang dijadikan acuan..."></textarea>
+          </div>
+
+          <button onclick="runPipeline()"
+            class="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50"
+            id="btn-run">
+            Jalankan Pipeline
+          </button>
+
+          <!-- Quick samples -->
+          <div>
+            <p class="text-xs text-gray-400 mb-2">Contoh cepat:</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button onclick="loadSample('jv')" class="text-xs px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full hover:bg-amber-100">Jawa</button>
+              <button onclick="loadSample('su')" class="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full hover:bg-emerald-100">Sunda</button>
+              <button onclick="loadSample('id')" class="text-xs px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100">Indonesia</button>
+              <button onclick="loadSample('critical')" class="text-xs px-2.5 py-1 bg-red-50 text-red-700 rounded-full hover:bg-red-100">Urgensi kritis</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Meta result -->
+        <div class="space-y-3" id="meta-panel">
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 class="font-bold text-sm text-[#1E2A4A] mb-3">Hasil Deteksi</h2>
+            <div id="meta-loading" class="text-sm text-gray-400 text-center py-6">Belum ada hasil</div>
+            <div id="meta-result" class="hidden space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <MetaCard id="m-dialect" label="Dialek" value="-" />
+                <MetaCard id="m-conf" label="Confidence" value="-" />
+                <MetaCard id="m-category" label="Kategori" value="-" />
+                <MetaCard id="m-urgency" label="Urgensi" value="-" />
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-gray-500 mb-1">Terjemahan</p>
+                <p id="m-translated" class="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 leading-relaxed"></p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-gray-500 mb-1">Keywords</p>
+                <div id="m-keywords" class="flex flex-wrap gap-1.5"></div>
+              </div>
+              <p class="text-[10px] text-gray-400 text-right" id="m-elapsed"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary comparison -->
+      <div class="bg-white rounded-xl border border-gray-200 p-5" id="summary-section">
+        <h2 class="font-bold text-sm text-[#1E2A4A] mb-4">Perbandingan Summarizer</h2>
+        <div id="summary-loading" class="text-sm text-gray-400 text-center py-6">Jalankan pipeline untuk melihat perbandingan</div>
+        <div id="summary-results" class="hidden space-y-4"></div>
+      </div>
+
+      <!-- ROUGE scores -->
+      <div class="bg-white rounded-xl border border-gray-200 p-5" id="rouge-section">
+        <h2 class="font-bold text-sm text-[#1E2A4A] mb-4">ROUGE Score Comparison</h2>
+        <p class="text-xs text-gray-400 mb-3">Semakin tinggi = semakin mirip referensi. F-measure (precision × recall).</p>
+        <div id="rouge-loading" class="text-sm text-gray-400 text-center py-4">Belum ada data</div>
+        <div id="rouge-results" class="hidden"></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: LOGS ───────────────────────────────────────────────── -->
+    <div id="tab-content-logs" class="hidden">
+      <div class="bg-white rounded-xl border border-gray-200">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 class="font-bold text-sm text-[#1E2A4A]">HF Space Logs</h2>
+          <div class="flex items-center gap-2">
+            <select id="log-type" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5">
+              <option value="run">Runtime Logs</option>
+              <option value="build">Build Logs</option>
+            </select>
+            <button onclick="startLogs()" class="text-xs bg-[#2563EB] text-white px-3 py-1.5 rounded-lg hover:bg-[#1D4ED8]">Stream</button>
+            <button onclick="stopLogs()" class="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200">Stop</button>
+            <button onclick="clearLogs()" class="text-xs text-gray-400 hover:text-gray-700">Clear</button>
+          </div>
+        </div>
+        <div id="log-output" class="h-[500px] overflow-y-auto p-4 space-y-0.5 bg-gray-50 rounded-b-xl font-mono text-xs">
+          <p class="text-gray-400 text-center py-8">
+            Klik "Stream" untuk mulai melihat logs HF Space secara real-time.<br>
+            Butuh <span class="font-semibold text-gray-500">HF_TOKEN</span> di backend environment / HF Space Repository secrets.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: MODEL STATUS ──────────────────────────────────────── -->
+    <div id="tab-content-models" class="hidden">
+      <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-bold text-sm text-[#1E2A4A]">Status Model NLP</h2>
+          <button onclick="refreshStatus()" class="text-xs text-[#2563EB] hover:underline">Refresh</button>
+        </div>
+        <div id="model-status-content">
+          <p class="text-sm text-gray-400 text-center py-6">Memuat...</p>
+        </div>
+      </div>
+
+      <!-- Pipeline architecture diagram -->
+      <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 class="font-bold text-sm text-[#1E2A4A] mb-4">Arsitektur Pipeline</h2>
+        <div class="flex flex-wrap gap-2 items-center text-xs">
+          <span class="badge bg-blue-50 text-blue-700 border border-blue-200">Input teks</span>
+          <span class="text-gray-400">→</span>
+          <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Detect Dialect<br>joblib LogReg</span>
+          <span class="text-gray-400">→</span>
+          <span class="badge bg-violet-50 text-violet-700 border border-violet-200">Translate<br>NLLB-200</span>
+          <span class="text-gray-400">→</span>
+          <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">Summarize<br>mT5 / IndoT5 / Extractive</span>
+          <span class="text-gray-400">→</span>
+          <span class="badge bg-rose-50 text-rose-700 border border-rose-200">NER<br>Cahya BERT</span>
+          <span class="text-gray-400">→</span>
+          <span class="badge bg-gray-50 text-gray-700 border border-gray-200">Category + Urgency<br>keyword matching</span>
+          <span class="text-gray-400">→</span>
+          <span class="badge bg-[#EFF6FF] text-[#2563EB] border border-blue-200">NLPResult</span>
+        </div>
+        <div class="mt-4 p-3 bg-amber-50 rounded-lg text-xs text-amber-800">
+          Setiap stage punya fallback chain. Pipeline tidak pernah crash — kalau model gagal load, stage langsung ke fallback.
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: PIPELINE INFO ─────────────────────────────────────── -->
+    <div id="tab-content-info" class="hidden space-y-5">
+      <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 class="font-bold text-sm text-[#1E2A4A] mb-2">Pipeline Information</h2>
+        <p class="text-sm text-gray-600 leading-relaxed">
+          Dashboard ini menjalankan pipeline secara in-memory untuk eksperimen. Hasil test tidak disimpan ke database.
+          Untuk aduan production, hasil AI dihitung saat submit lalu disimpan ke field NLP complaint.
+        </p>
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+          <div class="bg-blue-50 rounded-lg p-3">
+            <p class="font-bold text-blue-800">Input</p>
+            <p class="text-blue-700 mt-1">Teks aduan bebas: Bahasa Indonesia atau dialek daerah.</p>
+          </div>
+          <div class="bg-amber-50 rounded-lg p-3">
+            <p class="font-bold text-amber-800">Normalize</p>
+            <p class="text-amber-700 mt-1">Trim, truncate input panjang, tokenisasi sesuai model.</p>
+          </div>
+          <div class="bg-emerald-50 rounded-lg p-3">
+            <p class="font-bold text-emerald-800">AI Models</p>
+            <p class="text-emerald-700 mt-1">Dialect, translate, summarize, entity extraction.</p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="font-bold text-gray-800">Fallback</p>
+            <p class="text-gray-600 mt-1">Keyword/TextRank/first sentences agar pipeline tetap selesai.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="info-card">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <h3 class="font-bold text-sm text-[#1E2A4A]">Dialect Detector</h3>
+            <span class="badge bg-amber-50 text-amber-700">Trained local</span>
+          </div>
+          <div class="space-y-2 text-sm text-gray-700">
+            <p><span class="info-label">Backbone</span><br>Scikit-learn Pipeline: TF-IDF vectorizer + Logistic Regression classifier.</p>
+            <p><span class="info-label">Dataset</span><br>Dataset dialek lokal project dari sampel NusaX/multidialect yang dipakai untuk 12 kelas dialek.</p>
+            <p><span class="info-label">Preprocessing</span><br>Lowercase ringan, TF-IDF character/word features sesuai model training, lalu probabilitas kelas via `predict_proba`.</p>
+            <p><span class="info-label">Fallback</span><br>`langdetect`, lalu `xx` jika teks pendek atau confidence terlalu rendah.</p>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <h3 class="font-bold text-sm text-[#1E2A4A]">Translation</h3>
+            <span class="badge bg-violet-50 text-violet-700">Pretrained</span>
+          </div>
+          <div class="space-y-2 text-sm text-gray-700">
+            <p><span class="info-label">Backbone</span><br>`facebook/nllb-200-distilled-600M`, sequence-to-sequence multilingual translation model.</p>
+            <p><span class="info-label">Training</span><br>Tidak dilatih ulang di project ini. Model langsung diambil dari Hugging Face dan dicache di `HF_HOME`.</p>
+            <p><span class="info-label">Preprocessing</span><br>Mapping kode dialek ke FLORES-200 language code, truncate input, set target token `ind_Latn`.</p>
+            <p><span class="info-label">Fallback</span><br>Raw text secara default. Google fallback hanya aktif jika `ALLOW_EXTERNAL_TRANSLATION=true`.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+          <div>
+            <h2 class="font-bold text-sm text-[#1E2A4A]">Summarization Models</h2>
+            <p class="text-xs text-gray-500 mt-1">Model utama dipilih dengan `SUMMARIZER_MODEL`; fallback diatur dengan `SUMMARIZER_FALLBACKS`.</p>
+          </div>
+          <span class="badge bg-[#EFF6FF] text-[#2563EB]">Configurable</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="info-card bg-gray-50">
+            <h3 class="font-bold text-sm text-[#1E2A4A] mb-3">mT5-base NusaSum</h3>
+            <div class="space-y-2 text-sm text-gray-700">
+              <p><span class="info-label">Checkpoint</span><br>`OinoVenv/sovereign-mt5-nusasum` atau `MT5_MODEL_PATH`.</p>
+              <p><span class="info-label">Backbone</span><br>mT5-base, multilingual Text-to-Text Transformer encoder-decoder.</p>
+              <p><span class="info-label">Training</span><br>Fine-tuned untuk abstractive summarization gaya NusaSum/IndoSum pada notebook training summarization project.</p>
+              <p><span class="info-label">Preprocessing</span><br>Prompt default `ringkas: `, input max 512 token/char slice, output max 80 token, greedy decoding default.</p>
+              <p><span class="info-label">Kapan dipakai</span><br>Bagus untuk abstractive summary lintas bahasa, tetapi lebih berat karena backbone multilingual.</p>
+            </div>
+          </div>
+
+          <div class="info-card bg-gray-50">
+            <h3 class="font-bold text-sm text-[#1E2A4A] mb-3">IndoT5 NusaSum</h3>
+            <div class="space-y-2 text-sm text-gray-700">
+              <p><span class="info-label">Checkpoint</span><br>`OinoVenv/sovereign-indot5-nusasum` atau `INDOT5_MODEL_PATH`.</p>
+              <p><span class="info-label">Backbone</span><br>IndoT5, Text-to-Text Transformer yang lebih spesifik untuk Bahasa Indonesia.</p>
+              <p><span class="info-label">Training</span><br>Fine-tuned untuk summarization NusaSum agar bisa dibandingkan dengan mT5 sebagai kandidat model utama.</p>
+              <p><span class="info-label">Preprocessing</span><br>Prompt default `ringkas: `, truncate input 512, output 80 token, decoding greedy untuk latency CPU lebih rendah.</p>
+              <p><span class="info-label">Kapan dipakai</span><br>Kandidat utama jika ROUGE/hasil manual lebih baik untuk aduan Indonesia setelah translation.</p>
+            </div>
+          </div>
+
+          <div class="info-card bg-gray-50">
+            <h3 class="font-bold text-sm text-[#1E2A4A] mb-3">NER Extractive</h3>
+            <div class="space-y-2 text-sm text-gray-700">
+              <p><span class="info-label">Backbone</span><br>`cahya/bert-base-indonesian-NER`, BERT token classification untuk entity extraction.</p>
+              <p><span class="info-label">Training</span><br>Tidak dilatih ulang di project ini. Summarizer extractive dibuat dari skor kepadatan entity per kalimat.</p>
+              <p><span class="info-label">Use case</span><br>Fallback cepat yang menjaga nama tempat/instansi/orang tetap muncul di ringkasan.</p>
+            </div>
+          </div>
+
+          <div class="info-card bg-gray-50">
+            <h3 class="font-bold text-sm text-[#1E2A4A] mb-3">TextRank</h3>
+            <div class="space-y-2 text-sm text-gray-700">
+              <p><span class="info-label">Backbone</span><br>Non-neural extractive algorithm: TF-IDF sentence vectors + cosine similarity + PageRank.</p>
+              <p><span class="info-label">Training</span><br>Tidak butuh training. Selalu tersedia selama sklearn/networkx tersedia.</p>
+              <p><span class="info-label">Use case</span><br>Fallback stabil saat model abstractive belum loaded atau gagal karena RAM/network.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="info-card">
+          <h3 class="font-bold text-sm text-[#1E2A4A] mb-3">Entity, Category, Urgency</h3>
+          <div class="space-y-2 text-sm text-gray-700">
+            <p><span class="info-label">NER</span><br>Cahya IndoBERT NER jika loaded, fallback regex untuk Jalan/Desa/Dinas/PLN/Puskesmas/Bapak/Ibu.</p>
+            <p><span class="info-label">Category</span><br>Keyword matching 8 kategori: Infrastruktur, Kesehatan, Pendidikan, Keamanan, Lingkungan, Sosial, Administrasi, Umum.</p>
+            <p><span class="info-label">Urgency</span><br>Weighted keyword scoring: critical/high/medium/low berdasarkan kata seperti darurat, korban, rusak parah, segera.</p>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3 class="font-bold text-sm text-[#1E2A4A] mb-3">Environment Controls</h3>
+          <div class="space-y-2 text-sm text-gray-700">
+            <p><span class="info-label">Main summarizer</span><br>`SUMMARIZER_MODEL=mt5` atau `indot5` untuk hasil aduan production.</p>
+            <p><span class="info-label">Comparison warmup</span><br>`WARMUP_SUMMARIZERS=mt5,indot5` untuk dashboard. Setelah pilih model terbaik, set satu saja agar RAM lebih hemat.</p>
+            <p><span class="info-label">HF logs</span><br>`HF_TOKEN` disimpan di HF Space Repository secrets. Token cukup permission Read.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+<script>
+const SAMPLES = {
+  jv: "Dalane ning ngarep omah kita rusak parah banget, wis suwe ora dibenahi dening pemda. Saben udan, banyu ngrambah omah-omah warga sekitar. Ayo cepet ditangani sadurunge ana korban.",
+  su: "Jalan di Kopo teh sok macet wae ti isuk nepi ka peuting. Jalanna sempit, terus di sisi jalanna aya warung-warung, jadi teu bisa dilewatan dua mobil pas papasan. Urang mah ngarepkeun bisa diatur ulang jalanna.",
+  id: "Jalan utama di Desa Sukamaju rusak parah akibat banjir minggu lalu. Sudah dilaporkan ke kelurahan tapi belum ada tindakan. Mohon segera diperbaiki karena banyak warga yang lewat setiap hari untuk bekerja.",
+  critical: "Tolong cepat, ada kebakaran besar di pasar sentral. Korban sudah ada beberapa yang meninggal dan puluhan warga terjebak. Segera kirim pemadam kebakaran dan tim evakuasi darurat sekarang juga.",
+};
+
+function loadSample(key) {
+  document.getElementById("input-text").value = SAMPLES[key] || "";
+}
+
+function switchTab(name) {
+  ["pipeline", "logs", "models", "info"].forEach(t => {
+    document.getElementById(`tab-content-${t}`).classList.toggle("hidden", t !== name);
+    const btn = document.getElementById(`tab-${t}`);
+    btn.className = t === name
+      ? "py-3 text-sm tab-active"
+      : "py-3 text-sm text-gray-500 hover:text-gray-800";
+  });
+  if (name === "models") refreshStatus();
+}
+
+async function runPipeline() {
+  const text = document.getElementById("input-text").value.trim();
+  if (!text) { alert("Isi teks aduan dulu."); return; }
+
+  const btn = document.getElementById("btn-run");
+  btn.disabled = true;
+  btn.textContent = "Memproses...";
+
+  const reference = document.getElementById("input-reference").value.trim();
+
+  document.getElementById("meta-loading").classList.remove("hidden");
+  document.getElementById("meta-result").classList.add("hidden");
+  document.getElementById("summary-loading").classList.remove("hidden");
+  document.getElementById("summary-results").classList.add("hidden");
+  document.getElementById("rouge-loading").classList.remove("hidden");
+  document.getElementById("rouge-results").classList.add("hidden");
+
+  try {
+    const res = await fetch("/dashboard/api/pipeline/test/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, reference }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderResults(data);
+  } catch (e) {
+    document.getElementById("meta-loading").textContent = "Error: " + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Jalankan Pipeline";
+  }
+}
+
+function renderResults(data) {
+  // Meta
+  document.getElementById("meta-loading").classList.add("hidden");
+  document.getElementById("meta-result").classList.remove("hidden");
+
+  setMetaCard("m-dialect", "Dialek", dialectLabel(data.dialect.code));
+  setMetaCard("m-conf", "Confidence", (data.dialect.confidence * 100).toFixed(0) + "%");
+  setMetaCard("m-category", "Kategori", data.category);
+  setMetaCard("m-urgency", "Urgensi", urgencyLabel(data.urgency));
+  document.getElementById("m-translated").textContent = data.translated || "(teks sudah BI, tidak diterjemahkan)";
+  document.getElementById("m-elapsed").textContent = `Selesai dalam ${data.elapsed_ms} ms`;
+
+  const kwEl = document.getElementById("m-keywords");
+  kwEl.innerHTML = (data.keywords || []).map(k =>
+    `<span class="text-xs px-2 py-0.5 bg-[#EFF6FF] text-[#2563EB] rounded-full">${k}</span>`
+  ).join("");
+
+  // Summaries
+  document.getElementById("summary-loading").classList.add("hidden");
+  const sr = document.getElementById("summary-results");
+  sr.classList.remove("hidden");
+  sr.innerHTML = (data.summaries || []).map(s => `
+    <div class="border border-gray-100 rounded-xl p-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold text-gray-700">${s.model}</span>
+        <div class="flex items-center gap-2">
+          ${s.available ? '<span class="badge bg-emerald-50 text-emerald-700">Aktif</span>' : '<span class="badge bg-gray-100 text-gray-500">Fallback</span>'}
+          <span class="text-xs text-gray-400">${s.elapsed_ms}ms</span>
+        </div>
+      </div>
+      ${s.error ? `<p class="text-xs text-red-500">${s.error}</p>` : ''}
+      <p class="text-sm text-gray-700 leading-relaxed">${s.summary || '<em class="text-gray-400">Tidak ada output</em>'}</p>
+    </div>
+  `).join("");
+
+  // ROUGE
+  document.getElementById("rouge-loading").classList.add("hidden");
+  const rr = document.getElementById("rouge-results");
+  rr.classList.remove("hidden");
+  renderRouge(data.rouge || {});
+}
+
+function renderRouge(rouge) {
+  const el = document.getElementById("rouge-results");
+  if (rouge.error) {
+    el.innerHTML = `<p class="text-xs text-red-500">${rouge.error}</p>`;
+    return;
+  }
+  const entries = Object.entries(rouge);
+  if (!entries.length) {
+    el.innerHTML = '<p class="text-xs text-gray-400">Tidak ada data ROUGE.</p>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-100 text-xs text-gray-500">
+            <th class="text-left py-2 pr-4 font-semibold">Model</th>
+            <th class="text-left py-2 pr-4 font-semibold">ROUGE-1</th>
+            <th class="text-left py-2 pr-4 font-semibold">ROUGE-2</th>
+            <th class="text-left py-2 pr-4 font-semibold">ROUGE-L</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          ${entries.map(([model, scores]) => `
+            <tr>
+              <td class="py-3 pr-4 text-xs text-gray-700 font-medium max-w-[200px] truncate">${model}</td>
+              ${["rouge1","rouge2","rougeL"].map(k => `
+                <td class="py-3 pr-4">
+                  <div class="flex items-center gap-2">
+                    <div class="flex-1 bg-gray-100 rounded-full h-1.5 w-24">
+                      <div class="bg-[#2563EB] h-1.5 rounded-full score-bar" style="width:${(scores[k]*100).toFixed(0)}%"></div>
+                    </div>
+                    <span class="text-xs font-bold text-[#1E2A4A]">${scores[k].toFixed(3)}</span>
+                  </div>
+                </td>
+              `).join("")}
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function setMetaCard(id, label, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = `<p class="text-xs text-gray-500 mb-0.5">${label}</p><p class="text-sm font-bold text-[#1E2A4A]">${value}</p>`;
+}
+
+function dialectLabel(code) {
+  const map = {id:"Bahasa Indonesia",jv:"Jawa",su:"Sunda",min:"Minang",ace:"Aceh",ban:"Bali",bjn:"Banjar",bug:"Bugis",mad:"Madura",nij:"Ngaju",bbc:"Batak Toba",en:"Inggris",xx:"Tidak terdeteksi"};
+  return map[code] || code.toUpperCase();
+}
+
+function urgencyLabel(code) {
+  return {critical:"Kritis",high:"Tinggi",medium:"Sedang",low:"Rendah"}[code] || code;
+}
+
+// ── Logs ─────────────────────────────────────────────────────
+let logSource = null;
+
+function startLogs() {
+  stopLogs();
+  const type = document.getElementById("log-type").value;
+  const out = document.getElementById("log-output");
+  out.innerHTML = `<p class="text-gray-400 text-xs">Connecting (${type} logs)...</p>`;
+  logSource = new EventSource(`/dashboard/api/logs/?type=${type}`);
+  logSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      appendLog(out, data.data || e.data, data.level || "");
+    } catch {
+      appendLog(out, e.data, "");
+    }
+  };
+  logSource.onerror = () => appendLog(out, "Connection error or stream ended.", "error");
+}
+
+function stopLogs() {
+  if (logSource) { logSource.close(); logSource = null; }
+}
+
+function clearLogs() {
+  document.getElementById("log-output").innerHTML = "";
+}
+
+function appendLog(container, text, level) {
+  const div = document.createElement("div");
+  div.className = "log-line " + (
+    level === "error" || /ERROR|Exception|Traceback/.test(text) ? "log-error" :
+    level === "warning" || /WARNING|WARN/.test(text) ? "log-warn" :
+    level === "info" || /INFO/.test(text) ? "log-info" : ""
+  );
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── Model status ──────────────────────────────────────────────
+async function refreshStatus() {
+  const el = document.getElementById("model-status-content");
+  if (!el.dataset.loaded) {
+    el.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">Memuat...</p>';
+  }
+  try {
+    const res = await fetch("/dashboard/api/status/");
+    const data = await res.json();
+    renderModelStatus(data, el);
+    updateHeaderStatus(data);
+    el.dataset.loaded = "true";
+  } catch (e) {
+    el.innerHTML = `<p class="text-xs text-red-500">Gagal: ${e.message}</p>`;
+  }
+}
+
+function renderModelStatus(data, el) {
+  const models = data.models || {};
+  const rows = Object.entries(models).map(([name, info]) => {
+    const state = info.loaded ? "loaded" : info.failed ? "failed" : info.loading ? "loading" : "pending";
+    const elapsedMs = info.loading ? info.elapsed_ms : info.load_ms;
+    const loadTime = elapsedMs
+      ? `${(elapsedMs / 1000).toFixed(elapsedMs >= 10000 ? 1 : 2)} s`
+      : "—";
+    const badge = state === "loaded"
+      ? '<span class="badge bg-emerald-50 text-emerald-700">Loaded</span>'
+      : state === "failed"
+      ? '<span class="badge bg-red-50 text-red-600">Failed</span>'
+      : state === "loading"
+      ? '<span class="badge bg-amber-50 text-amber-700">Loading</span>'
+      : '<span class="badge bg-gray-100 text-gray-500">Pending</span>';
+    const error = info.error
+      ? `<p class="text-[10px] text-red-500 mt-1 max-w-[360px] truncate">${info.error}</p>`
+      : "";
+    return `<tr class="border-b border-gray-50">
+      <td class="py-3 text-sm font-medium text-gray-700 capitalize">${name}</td>
+      <td class="py-3">${badge}${error}</td>
+      <td class="py-3 text-xs ${info.loading ? 'text-blue-500 font-semibold' : 'text-gray-400'}">${loadTime}</td>
+    </tr>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="mb-3 flex items-center gap-2">
+      <span class="text-xs font-semibold text-gray-600">NLP_ENABLED:</span>
+      <span class="badge ${data.nlp_enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}">${data.nlp_enabled ? 'true' : 'false'}</span>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100 text-xs text-gray-500">
+          <th class="text-left py-2 font-semibold">Model</th>
+          <th class="text-left py-2 font-semibold">Status</th>
+          <th class="text-left py-2 font-semibold">Load time</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function updateHeaderStatus(data) {
+  const models = data.models || {};
+  const loaded = Object.values(models).filter(m => m.loaded).length;
+  const loading = Object.values(models).filter(m => m.loading).length;
+  const total = Object.keys(models).length;
+  document.getElementById("status-dot").className =
+    `w-2 h-2 rounded-full ${loaded === total ? "bg-emerald-400" : loading > 0 ? "bg-blue-400 animate-pulse" : loaded > 0 ? "bg-amber-400" : "bg-gray-400"}`;
+  document.getElementById("status-text").textContent =
+    loading > 0 ? `NLP: ${loaded}/${total} loaded, ${loading} loading` : `NLP: ${loaded}/${total} model loaded`;
+}
+
+// Bootstrap
+document.addEventListener("DOMContentLoaded", () => {
+  refreshStatus();
+  setInterval(refreshStatus, 4000);
+  // Add meta card divs dynamically
+  ["m-dialect","m-conf","m-category","m-urgency"].forEach(id => {
+    const div = document.createElement("div");
+    div.id = id;
+    div.className = "bg-gray-50 rounded-lg p-3";
+    div.innerHTML = `<p class="text-xs text-gray-500 mb-0.5">-</p><p class="text-sm font-bold text-[#1E2A4A]">-</p>`;
+    document.getElementById("meta-result").querySelector(".grid")?.appendChild(div);
+  });
+});
+</script>
+</body>
+</html>

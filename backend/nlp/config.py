@@ -37,11 +37,36 @@ def _resolve_mt5_path() -> str:
 
 MT5_MODEL_PATH = _resolve_mt5_path()
 
+# ── IndoT5 path ──────────────────────────────────────────────────────────────
+# Priority: env var INDOT5_MODEL_PATH > local folder > HF Hub custom checkpoint.
+def _resolve_indot5_path() -> str:
+    env = os.environ.get("INDOT5_MODEL_PATH", "").strip()
+    if env:
+        return env
+    local = MODELS_DIR / "indot5_nusasum"
+    if local.exists():
+        return str(local)
+    return "OinoVenv/sovereign-indot5-nusasum"
+
+
+INDOT5_MODEL_PATH = _resolve_indot5_path()
+
 # Translator NLLB — dari HF Hub, di-cache otomatis ke HF_HOME.
 NLLB_MODEL_ID = os.environ.get("NLLB_MODEL_ID", "facebook/nllb-200-distilled-600M")
 
-# NER IndoBERT — Cahya, dari HF Hub.
-NER_MODEL_ID = os.environ.get("NER_MODEL_ID", "cahya/bert-base-indonesian-NER")
+# NER IndoBERT — Cahya.
+# Priority: env var > folder lokal hasil Docker build > HF Hub.
+def _resolve_ner_model() -> str:
+    env = os.environ.get("NER_MODEL_ID", "").strip()
+    if env:
+        return env
+    local = MODELS_DIR / "ner_cahya"
+    if local.exists():
+        return str(local)
+    return "cahya/bert-base-indonesian-NER"
+
+
+NER_MODEL_ID = _resolve_ner_model()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -49,9 +74,35 @@ NER_MODEL_ID = os.environ.get("NER_MODEL_ID", "cahya/bert-base-indonesian-NER")
 # ─────────────────────────────────────────────────────────────────────────────
 MIN_DIALECT_CONF = 0.35       # ambang minimum confidence dialect detector
 MIN_WORDS_NEURAL = 40          # di bawah ini summarize pakai TextRank
-MT5_MAX_INPUT = 1024            # max kata dipotong sebelum mT5
-MT5_MAX_OUTPUT = 150            # max_new_tokens untuk summary
-MT5_NUM_BEAMS = 2                # beam search; 2 cukup baik & cepat di CPU
+SUMMARIZER_MODEL = os.environ.get("SUMMARIZER_MODEL", "mt5").strip().lower()
+SUMMARIZER_FALLBACKS = [
+    item.strip().lower()
+    for item in os.environ.get("SUMMARIZER_FALLBACKS", "ner,textrank,first_sentences").split(",")
+    if item.strip()
+]
+WARMUP_SUMMARIZERS = [
+    item.strip().lower()
+    for item in os.environ.get("WARMUP_SUMMARIZERS", "mt5,indot5").split(",")
+    if item.strip()
+]
+MT5_MAX_INPUT = 512             # potong input agar inference CPU lebih cepat
+MT5_MAX_OUTPUT = 80             # ringkasan aduan tidak perlu panjang
+MT5_NUM_BEAMS = 1               # greedy decoding — 3-5x lebih cepat dari beam=2, kualitas cukup untuk aduan pendek
+MT5_SUMMARY_PREFIX = os.environ.get("MT5_SUMMARY_PREFIX", "ringkas: ")
+INDOT5_MAX_INPUT = int(os.environ.get("INDOT5_MAX_INPUT", "512"))
+INDOT5_MAX_OUTPUT = int(os.environ.get("INDOT5_MAX_OUTPUT", "80"))
+INDOT5_NUM_BEAMS = int(os.environ.get("INDOT5_NUM_BEAMS", "1"))
+INDOT5_SUMMARY_PREFIX = os.environ.get("INDOT5_SUMMARY_PREFIX", "ringkas: ")
+NLLB_MAX_NEW_TOKENS = 200       # teks aduan rata-rata 50-150 token, 200 cukup
+NLLB_MAX_INPUT_TOKENS = int(os.environ.get("NLLB_MAX_INPUT_TOKENS", "384"))
+TRANSLATION_CHUNK_CHARS = int(os.environ.get("TRANSLATION_CHUNK_CHARS", "420"))
+EXTERNAL_TRANSLATION_CHUNK_CHARS = int(
+    os.environ.get("EXTERNAL_TRANSLATION_CHUNK_CHARS", "4000")
+)
+PIPELINE_TIMEOUT_SEC = 60       # timeout per pipeline run — kalau lebih, pakai fallback
+ALLOW_EXTERNAL_TRANSLATION = os.environ.get("ALLOW_EXTERNAL_TRANSLATION", "true").lower() in (
+    "1", "true", "yes"
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
