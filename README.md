@@ -7,6 +7,7 @@ Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung **12 
 - Fadhlan Nur Rachman (2802491690)
 - Dian Rakhmawati Lestari (2802539085) ERROR NY SAMA
 - Matthew Ken Susanto (2802407736)
+- Nasauramecca Nour Haqqanshah Shodiqin (2802541921)
 
 ## Tech Stack
 
