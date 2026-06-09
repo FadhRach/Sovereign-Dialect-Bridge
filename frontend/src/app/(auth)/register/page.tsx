@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Globe } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import RegisterForm from "@/components/features/auth/RegisterForm";
 
 export default function RegisterPage() {
@@ -47,6 +48,10 @@ export default function RegisterPage() {
       <div className="flex-1 bg-white px-6 py-10 overflow-y-auto">
         <div className="max-w-lg mx-auto">
           {/* Mobile logo */}
+          <Link href="/" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-[#2563EB] mb-6 transition-colors group font-medium">
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            Kembali ke Halaman Utama
+          </Link>
           <div className="lg:hidden flex items-center gap-2.5 mb-8">
             <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center">
               <Globe className="w-4 h-4 text-white" />
