@@ -9,12 +9,12 @@ import { ArrowUpRight, ChevronDown, Sparkles } from "lucide-react";
 const HEADLINE_LINES = ["Sampaikan Aduan", "dalam Bahasa", "Daerahmu"];
 
 const DIALECT_CHIPS = [
-  { label: "Jawa", color: "bg-amber-100 text-amber-700 ring-amber-200" },
-  { label: "Sunda", color: "bg-emerald-100 text-emerald-700 ring-emerald-200" },
-  { label: "Minang", color: "bg-rose-100 text-rose-700 ring-rose-200" },
-  { label: "Bali", color: "bg-violet-100 text-violet-700 ring-violet-200" },
-  { label: "Batak", color: "bg-orange-100 text-orange-700 ring-orange-200" },
-  { label: "Bugis", color: "bg-cyan-100 text-cyan-700 ring-cyan-200" },
+  { label: "Jawa", color: "bg-white/25 text-white text-xs font-semibold ring-white/40" },
+  { label: "Sunda", color: "bg-white/25 text-white text-xs font-semibold ring-white/40" },
+  { label: "Minang", color: "bg-white/25 text-white text-xs font-semibold ring-white/40" },
+  { label: "Bali", color: "bg-white/25 text-white text-xs font-semibold ring-white/40" },
+  { label: "Batak", color: "bg-white/25 text-white text-xs font-semibold ring-white/40" },
+  { label: "Bugis", color: "bg-white/25 text-white text-xs font-semibold ring-white/40" },
 ];
 
 export default function Hero() {
