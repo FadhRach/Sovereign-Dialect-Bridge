@@ -8,6 +8,7 @@ Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung **12 
 - Dian Rakhmawati Lestari (2802539085)
 - Matthew Ken Susanto (2802407736)
 - Nasauramecca Nour Haqqanshah Shodiqin (2802541921)
+- Bintang Nur Fadhlillah ()
 
 ## Akun Tes Lokal
 
@@ -15,8 +16,6 @@ Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung **12 
 |-------|--------------------------|---------------|
 | Admin | `admintest@dialect.test` | `Admin12345!` |
 | User  | `wargatest@dialect.test` | `Warga12345!` |
-
-> Akun ini dibuat manual via Django shell saat testing — bukan migrasi. Aman dihapus.
 
 ## Tech Stack
 
