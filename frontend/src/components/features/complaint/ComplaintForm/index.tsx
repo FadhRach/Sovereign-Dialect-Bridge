@@ -13,7 +13,7 @@
  *   - Step3Review: read-only review sebelum submit
  */
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
 import api from "@/lib/api";
@@ -24,7 +24,7 @@ import StepIndicator from "./StepIndicator";
 import Step1Story from "./Step1Story";
 import Step2LocationPhoto from "./Step2LocationPhoto";
 import Step3Review from "./Step3Review";
-import { MIN_CHARS, MAX_CHARS, type FormState } from "./types";
+import { countWords, MAX_CHARS, MIN_CHARS, MIN_WORDS, type FormState } from "./types";
 
 export default function ComplaintForm() {
   const router = useRouter();
@@ -35,17 +35,25 @@ export default function ComplaintForm() {
     latitude: null,
     longitude: null,
     photo_url: null,
+    photo_preview: null,
+    photo_uploading: false,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const charCount = form.original_text.length;
-  const step1Valid = charCount >= MIN_CHARS && charCount <= MAX_CHARS;
-  const step2Valid = form.wilayah.trim().length > 0;
+  const wordCount = countWords(form.original_text);
+  const step1Valid = charCount >= MIN_CHARS && charCount <= MAX_CHARS && wordCount >= MIN_WORDS;
+  const step2Valid = (
+    form.wilayah.trim().length > 0
+    && form.latitude !== null
+    && form.longitude !== null
+    && !form.photo_uploading
+  );
 
-  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+  const update = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
-  }
+  }, []);
 
   async function handleSubmit() {
     setError(null);
@@ -89,7 +97,7 @@ export default function ComplaintForm() {
           onError={setError}
         />
       )}
-      {step === 3 && <Step3Review form={form} photoPreview={form.photo_url} />}
+      {step === 3 && <Step3Review form={form} photoPreview={form.photo_preview || form.photo_url} />}
 
       {/* Nav buttons */}
       <div className="flex items-center justify-between">

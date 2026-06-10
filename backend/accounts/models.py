@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.utils import timezone
 
 
 class CustomUserManager(BaseUserManager):
@@ -91,3 +92,36 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+class PasswordResetCode(models.Model):
+    """Kode verifikasi reset password dengan masa berlaku pendek."""
+
+    CHANNEL_CHOICES = [
+        ("email", "Email"),
+    ]
+
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="password_reset_codes")
+    identifier = models.CharField(max_length=150, db_index=True)
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default="email")
+    code_hash = models.CharField(max_length=255)
+    reset_token_hash = models.CharField(max_length=255, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    expires_at = models.DateTimeField()
+    verified_at = models.DateTimeField(blank=True, null=True)
+    used_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["identifier", "channel", "created_at"]),
+            models.Index(fields=["user", "used_at", "expires_at"]),
+        ]
+
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    def mark_used(self):
+        self.used_at = timezone.now()
+        self.save(update_fields=["used_at"])

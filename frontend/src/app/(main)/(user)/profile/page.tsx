@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, User as UserIcon, MapPin, Lock, Save, Loader2, Eye, EyeOff, CheckCircle2,
+  Mail, Phone, ShieldCheck, Home,
 } from "lucide-react";
 import api from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
@@ -42,7 +43,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-3xl">
+    <div className="container mx-auto px-4 py-6 max-w-4xl">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#1E2A4A] mb-4 transition-colors"
@@ -57,12 +58,92 @@ export default function ProfilePage() {
       </div>
 
       <div className="space-y-5">
+        <ProfileSummary user={user} />
         <IdentitySection user={user} onUpdated={setUser} />
         <AddressSection user={user} onUpdated={setUser} />
         <PasswordSection />
       </div>
     </div>
   );
+}
+
+function ProfileSummary({ user }: { user: User }) {
+  const completeness = getProfileCompleteness(user);
+  const joinedAt = new Date(user.date_joined).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return (
+    <section className="relative overflow-hidden rounded-2xl bg-[#1E2A4A] p-5 sm:p-6 text-white">
+      <div className="absolute inset-0 batik-overlay opacity-[0.08]" />
+      <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-xl font-extrabold text-[#1E2A4A] shadow-lg">
+            {getInitials(user.full_name)}
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-100">Akun Warga</p>
+            <h2 className="text-xl font-bold">{user.full_name}</h2>
+            <p className="mt-1 text-xs text-blue-100">Bergabung sejak {joinedAt}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <SummaryPill Icon={Mail} label="Email" value={user.email} />
+          <SummaryPill Icon={Phone} label="Telepon" value={user.phone} />
+          <SummaryPill Icon={Home} label="Domisili" value={`${user.address_city}, ${user.address_province}`} />
+          <SummaryPill Icon={ShieldCheck} label="Kelengkapan" value={`${completeness}% data`} />
+        </div>
+      </div>
+      <div className="relative mt-5">
+        <div className="mb-1.5 flex items-center justify-between text-xs text-blue-100">
+          <span>Kelengkapan profil</span>
+          <span>{completeness}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-white/15">
+          <div className="h-full rounded-full bg-[#60A5FA]" style={{ width: `${completeness}%` }} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SummaryPill({ Icon, label, value }: { Icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
+      <div className="flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 text-[#60A5FA]" />
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100">{label}</p>
+      </div>
+      <p className="mt-1 max-w-[220px] truncate text-xs font-semibold text-white">{value || "-"}</p>
+    </div>
+  );
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function getProfileCompleteness(user: User): number {
+  const fields = [
+    user.full_name,
+    user.email,
+    user.phone,
+    user.address_city,
+    user.address_province,
+    user.address_street,
+    user.address_kelurahan,
+    user.address_kecamatan,
+    user.address_postal_code,
+  ];
+  const filled = fields.filter((field) => Boolean(field && String(field).trim())).length;
+  return Math.round((filled / fields.length) * 100);
 }
 
 function SectionCard({

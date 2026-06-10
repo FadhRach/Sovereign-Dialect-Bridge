@@ -1,22 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft, MapPin, Calendar, Sparkles, Image as ImageIcon,
-  CheckCircle2, Loader2, Save, AlertCircle,
+  CheckCircle2, Loader2, Save, AlertCircle, Trash2,
 } from "lucide-react";
 import { useAuth } from "@/components/features/auth/AuthProvider";
 import { useComplaintDetail } from "@/hooks/useComplaints";
 import api from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
 import Alert from "@/components/ui/Alert";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import UrgencyIndicator from "@/components/ui/UrgencyIndicator";
 import NLPResultCard from "@/components/features/complaint/NLPResultCard";
 import NLPProgress from "@/components/features/complaint/NLPProgress";
 import StatusTimeline from "@/components/features/complaint/StatusTimeline";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import type { ApiResponse, Complaint, ComplaintStatus } from "@/types";
+import { buildGoogleMapsUrl, getValidCoordinates } from "@/components/features/map/mapUtils";
+import type { ApiResponse, Complaint, ComplaintStatus, MapPoint } from "@/types";
+
+const MiniComplaintMap = dynamic(() => import("@/components/features/map/MiniComplaintMap"), {
+  ssr: false,
+  loading: () => <div className="h-[220px] rounded-2xl bg-blue-50 animate-pulse" />,
+});
 
 const ADMIN_STATUS_OPTIONS: { value: ComplaintStatus; label: string }[] = [
   { value: "pending", label: "Menunggu" },
@@ -29,6 +38,7 @@ const ADMIN_STATUS_OPTIONS: { value: ComplaintStatus; label: string }[] = [
 export default function ComplaintDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   const { isAdmin } = useAuth();
+  const router = useRouter();
   const { complaint, isLoading, error, refetch } = useComplaintDetail(id);
   const [newBanner, setNewBanner] = useState(false);
 
@@ -60,6 +70,7 @@ export default function ComplaintDetailPage({ params }: { params: { id: string }
   const submittedAt = new Date(complaint.created_at).toLocaleString("id-ID", {
     day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
+  const locationPoint = buildMapPoint(complaint);
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-5xl">
@@ -173,20 +184,21 @@ export default function ComplaintDetailPage({ params }: { params: { id: string }
           )}
 
           {/* Location */}
-          {complaint.latitude && complaint.longitude && (
+          {locationPoint && (
             <section className="bg-white rounded-2xl border border-gray-100 p-5">
               <h2 className="text-sm font-bold text-[#1E2A4A] mb-3 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[#2563EB]" />
-                Koordinat
+                Lokasi Aduan
               </h2>
+              <MiniComplaintMap points={[locationPoint]} height="220px" />
               <a
-                href={`https://www.openstreetmap.org/?mlat=${complaint.latitude}&mlon=${complaint.longitude}#map=17/${complaint.latitude}/${complaint.longitude}`}
+                href={buildGoogleMapsUrl(locationPoint.latitude, locationPoint.longitude)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-[#2563EB] hover:text-[#1D4ED8] font-medium"
+                className="mt-3 inline-flex items-center gap-2 text-sm text-[#2563EB] hover:text-[#1D4ED8] font-medium"
               >
-                {complaint.latitude.toFixed(5)}, {complaint.longitude.toFixed(5)}
-                <span className="text-xs text-gray-400">(Buka di peta)</span>
+                {locationPoint.latitude.toFixed(5)}, {locationPoint.longitude.toFixed(5)}
+                <span className="text-xs text-gray-400">(Buka Google Maps)</span>
               </a>
             </section>
           )}
@@ -195,7 +207,13 @@ export default function ComplaintDetailPage({ params }: { params: { id: string }
         {/* Right column */}
         <div className="space-y-5">
           {isAdmin && (
-            <AdminActionPanel complaint={complaint} onUpdated={refetch} />
+            <>
+              <AdminActionPanel complaint={complaint} onUpdated={refetch} />
+              <AdminDeleteComplaintPanel complaint={complaint} onDeleted={() => router.replace("/admin")} />
+            </>
+          )}
+          {!isAdmin && complaint.status === "pending" && (
+            <CancelComplaintPanel complaint={complaint} onCancelled={() => router.replace("/dashboard")} />
           )}
 
           <section className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -215,6 +233,21 @@ export default function ComplaintDetailPage({ params }: { params: { id: string }
   );
 }
 
+function buildMapPoint(complaint: Complaint): MapPoint | null {
+  const coordinates = getValidCoordinates(complaint);
+  if (!coordinates) return null;
+
+  return {
+    id: complaint.id,
+    latitude: coordinates[0],
+    longitude: coordinates[1],
+    wilayah: complaint.wilayah,
+    status: complaint.status,
+    urgency_level: complaint.urgency_level,
+    category__name: complaint.category?.name ?? null,
+  };
+}
+
 function statusLabel(status: ComplaintStatus): string {
   return ADMIN_STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
 }
@@ -226,6 +259,65 @@ function InfoTile({ label, value, sublabel }: { label: string; value: string; su
       <p className="text-sm font-bold text-[#1E2A4A] mt-1 truncate">{value}</p>
       {sublabel && <p className="text-[10px] text-gray-500 mt-0.5">{sublabel}</p>}
     </div>
+  );
+}
+
+function CancelComplaintPanel({ complaint, onCancelled }: { complaint: Complaint; onCancelled: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  async function cancelComplaint() {
+    setLoading(true);
+    setError(null);
+    try {
+      await api.delete<ApiResponse<null>>(`/api/complaints/${complaint.id}/`);
+      onCancelled();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg || "Gagal membatalkan aduan.");
+    } finally {
+      setLoading(false);
+      setConfirmOpen(false);
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-red-100 p-5">
+      <h2 className="text-sm font-bold text-[#1E2A4A] mb-2 flex items-center gap-2">
+        <Trash2 className="w-4 h-4 text-red-500" />
+        Batalkan Aduan
+      </h2>
+      <p className="text-xs text-gray-500 leading-relaxed mb-3">
+        Aduan masih menunggu peninjauan, jadi Anda masih bisa membatalkannya. Admin akan mendapat notifikasi.
+      </p>
+      {error && (
+        <div className="mb-3 flex items-start gap-2 text-xs text-red-600 bg-red-50 rounded-lg p-2.5">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        disabled={loading}
+        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-60"
+      >
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        {loading ? "Membatalkan..." : "Batalkan Aduan"}
+      </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Batalkan aduan ini?"
+        description="Aduan akan dihapus dari daftar aktif dan admin akan menerima notifikasi bahwa aduan dibatalkan. Tindakan ini tidak bisa dibatalkan."
+        confirmLabel="Batalkan aduan"
+        cancelLabel="Tetap simpan"
+        loading={loading}
+        variant="danger"
+        onConfirm={cancelComplaint}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </section>
   );
 }
 
@@ -263,7 +355,7 @@ function AdminActionPanel({ complaint, onUpdated }: { complaint: Complaint; onUp
   }
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-100 p-5 sticky top-20">
+    <section className="bg-white rounded-2xl border border-gray-100 p-5">
       <h2 className="text-sm font-bold text-[#1E2A4A] mb-4 flex items-center gap-2">
         <span className="w-1 h-4 bg-[#2563EB] rounded-full" />
         Tindak Lanjut
@@ -319,6 +411,84 @@ function AdminActionPanel({ complaint, onUpdated }: { complaint: Complaint; onUp
           Simpan Perubahan
         </button>
       </div>
+    </section>
+  );
+}
+
+function AdminDeleteComplaintPanel({ complaint, onDeleted }: { complaint: Complaint; onDeleted: () => void }) {
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  async function deleteComplaint() {
+    const cleanedReason = reason.trim();
+    setError(null);
+    if (cleanedReason.length < 10) {
+      setError("Alasan hapus minimal 10 karakter agar user mendapat konteks jelas.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.delete<ApiResponse<null>>(`/api/complaints/${complaint.id}/`, {
+        data: { reason: cleanedReason },
+      });
+      onDeleted();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg || "Gagal menghapus aduan.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-red-100 p-5">
+      <h2 className="text-sm font-bold text-[#1E2A4A] mb-2 flex items-center gap-2">
+        <Trash2 className="w-4 h-4 text-red-500" />
+        Hapus Aduan
+      </h2>
+      <p className="text-xs text-gray-500 leading-relaxed mb-3">
+        Hapus hanya jika aduan duplikat, tidak valid, atau melanggar aturan. User akan mendapat notifikasi beserta alasan.
+      </p>
+      {error && (
+        <div className="mb-3 flex items-start gap-2 text-xs text-red-600 bg-red-50 rounded-lg p-2.5">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        disabled={loading}
+        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-60"
+      >
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        {loading ? "Menghapus..." : "Hapus Aduan"}
+      </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Hapus aduan ini?"
+        description="Tindakan ini menghapus aduan dari database aktif. Isi alasan yang jelas karena alasan akan dikirim ke user."
+        confirmLabel="Hapus aduan"
+        cancelLabel="Batal"
+        loading={loading}
+        variant="danger"
+        onConfirm={deleteComplaint}
+        onCancel={() => {
+          if (!loading) setConfirmOpen(false);
+        }}
+      >
+        <label className="block text-xs font-bold text-[#1E2A4A] mb-1.5">Alasan untuk user</label>
+        <textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          rows={4}
+          placeholder="Contoh: Aduan dihapus karena merupakan duplikasi dari aduan #..."
+          className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        />
+        <p className="mt-1 text-[11px] text-gray-400">{reason.trim().length}/10 karakter minimum</p>
+      </ConfirmDialog>
     </section>
   );
 }

@@ -5,6 +5,7 @@ Tujuan: memastikan happy-path tidak rusak setelah refactor.
 Gunakan APIClient dari DRF, bukan Django test client biasa, agar JSON renderer aktif.
 """
 
+from django.core import mail
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework import status
@@ -100,6 +101,54 @@ class AuthFlowTests(TestCase):
         CustomUser.objects.filter(email="test@example.com").update(is_active=False)
         response = self._login()
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_settings(
+        DEBUG=True,
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        PASSWORD_RESET_DEBUG_CODE=True,
+    )
+    def test_password_reset_email_flow_changes_password(self):
+        self._register()
+        request_response = self.client.post(
+            "/api/auth/password-reset/request/",
+            {"email": "test@example.com"},
+            format="json",
+        )
+        self.assertEqual(request_response.status_code, status.HTTP_200_OK)
+        request_body = request_response.json()
+        self.assertTrue(request_body["success"])
+        self.assertIn("debug_code", request_body["data"])
+        self.assertEqual(len(mail.outbox), 1)
+
+        verify_response = self.client.post(
+            "/api/auth/password-reset/verify/",
+            {"email": "test@example.com", "code": request_body["data"]["debug_code"]},
+            format="json",
+        )
+        self.assertEqual(verify_response.status_code, status.HTTP_200_OK)
+        reset_token = verify_response.json()["data"]["reset_token"]
+
+        confirm_response = self.client.post(
+            "/api/auth/password-reset/confirm/",
+            {
+                "reset_token": reset_token,
+                "new_password": "NewTestPass123!",
+                "new_password_confirm": "NewTestPass123!",
+            },
+            format="json",
+        )
+        self.assertEqual(confirm_response.status_code, status.HTTP_200_OK)
+
+        login_response = self._login(password="NewTestPass123!")
+        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+
+    def test_password_reset_rejects_non_email_identifier(self):
+        response = self.client.post(
+            "/api/auth/password-reset/request/",
+            {"email": "081234567890"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_token_refresh_returns_new_tokens(self):
         self._register()

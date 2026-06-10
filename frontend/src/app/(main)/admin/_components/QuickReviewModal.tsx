@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { X, Sparkles, Save, Loader2 } from "lucide-react";
+import { X, Sparkles, Save, Loader2, Image as ImageIcon } from "lucide-react";
 import api from "@/lib/api";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import UrgencyIndicator from "@/components/ui/UrgencyIndicator";
@@ -116,6 +116,21 @@ export default function QuickReviewModal({ id, onClose, onUpdated }: QuickReview
             <Section label="Wilayah">
               <p className="text-sm text-gray-800">{complaint.wilayah}</p>
             </Section>
+
+            {complaint.photo_url && (
+              <div>
+                <div className="mb-2 flex items-center gap-1.5">
+                  <ImageIcon className="h-3.5 w-3.5 text-[#2563EB]" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Foto Pendukung</p>
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={complaint.photo_url}
+                  alt="Foto pendukung aduan"
+                  className="h-36 w-full rounded-2xl border border-gray-100 bg-gray-50 object-cover"
+                />
+              </div>
+            )}
 
             {complaint.summary ? (
               <div>

@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "leaflet.markercluster";
 import type { MapPoint, UrgencyLevel } from "@/types";
+import {
+  addBaseLayers,
+  buildGoogleMapsUrl,
+  DEFAULT_INDONESIA_CENTER,
+  enableComfortableMapInteraction,
+  escapeHtml,
+  formatCoordinates,
+  normalizeUrgencyLevel,
+  sanitizeMapPoints,
+} from "./mapUtils";
 
 const URGENCY_HEX: Record<UrgencyLevel, string> = {
   critical: "#E24B4A",
@@ -31,20 +41,49 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function buildMarkerIcon(urgency: UrgencyLevel): L.DivIcon {
-  const color = URGENCY_HEX[urgency];
+  const color = URGENCY_HEX[normalizeUrgencyLevel(urgency)];
   const html = `
-    <div style="position:relative;width:30px;height:38px;">
-      <div style="position:absolute;top:0;left:0;width:30px;height:30px;background:${color};border:2.5px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.25);"></div>
-      <div style="position:absolute;top:9px;left:9px;width:12px;height:12px;background:white;border-radius:50%;"></div>
+    <div style="position:relative;width:34px;height:44px;">
+      <div style="position:absolute;top:0;left:0;width:34px;height:34px;background:${color};border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 12px 28px rgba(15,23,42,0.36);"></div>
+      <div style="position:absolute;top:10px;left:10px;width:14px;height:14px;background:white;border-radius:50%;"></div>
+      <div style="position:absolute;bottom:1px;left:12px;width:10px;height:4px;background:rgba(15,23,42,0.28);border-radius:999px;filter:blur(2px);"></div>
     </div>
   `;
   return L.divIcon({
     html,
     className: "complaint-marker",
-    iconSize: [30, 38],
-    iconAnchor: [15, 38],
-    popupAnchor: [0, -34],
+    iconSize: [34, 44],
+    iconAnchor: [17, 44],
+    popupAnchor: [0, -40],
   });
+}
+
+function buildPopupHtml(point: MapPoint, urgency: UrgencyLevel): string {
+  const color = URGENCY_HEX[urgency];
+  return `
+    <div style="font-family:system-ui,sans-serif;min-width:230px;max-width:270px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
+        <span style="display:inline-flex;align-items:center;gap:7px;border-radius:999px;background:${color}14;color:${color};font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;padding:5px 9px;">
+          <span style="width:8px;height:8px;border-radius:999px;background:${color};display:inline-block;"></span>
+          ${URGENCY_LABEL[urgency]}
+        </span>
+        <span style="font-size:11px;color:#64748b;font-weight:700;">#${point.id}</span>
+      </div>
+      <p style="font-weight:800;color:#1E2A4A;font-size:14px;line-height:1.35;margin:0 0 7px 0;">${escapeHtml(point.wilayah || "Tanpa wilayah")}</p>
+      <p style="color:#64748b;font-size:12px;line-height:1.4;margin:0 0 10px 0;">
+        ${escapeHtml(point.category__name || "Kategori belum diklasifikasi")} · ${STATUS_LABEL[point.status] || escapeHtml(point.status)}
+      </p>
+      <p style="color:#94a3b8;font-size:11px;margin:0 0 12px 0;">${formatCoordinates(point.latitude, point.longitude)}</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/complaint/${point.id}" style="display:inline-flex;border-radius:999px;background:#2563EB;color:white;font-size:12px;font-weight:800;text-decoration:none;padding:8px 11px;">
+          Lihat Detail
+        </a>
+        <a href="${buildGoogleMapsUrl(point.latitude, point.longitude)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;border-radius:999px;background:#EFF6FF;color:#2563EB;font-size:12px;font-weight:800;text-decoration:none;padding:8px 11px;">
+          Google Maps
+        </a>
+      </div>
+    </div>
+  `;
 }
 
 interface Props {
@@ -56,21 +95,24 @@ export default function ComplaintMap({ points, height = "calc(100vh - 200px)" }:
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
+  const validPoints = useMemo(() => sanitizeMapPoints(points), [points]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = L.map(containerRef.current, {
-      center: [-2.5, 118],
+      center: DEFAULT_INDONESIA_CENTER,
       zoom: 5,
       zoomControl: true,
       preferCanvas: true,
+      scrollWheelZoom: true,
+      wheelPxPerZoomLevel: 90,
+      zoomSnap: 0.5,
+      zoomDelta: 0.5,
     });
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map);
+    addBaseLayers(map, L);
+    enableComfortableMapInteraction(map, { scrollWheelZoom: true });
 
     const cluster = L.markerClusterGroup({
       maxClusterRadius: 60,
@@ -83,7 +125,7 @@ export default function ComplaintMap({ points, height = "calc(100vh - 200px)" }:
         if (count >= 50) { size = 52; bg = "#1D4ED8"; }
         else if (count >= 10) { size = 44; bg = "#3B82F6"; }
         return L.divIcon({
-          html: `<div style="width:${size}px;height:${size}px;background:${bg};color:white;font-weight:700;font-size:13px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 4px 12px rgba(37,99,235,0.4);">${count}</div>`,
+          html: `<div style="width:${size}px;height:${size}px;background:${bg};color:white;font-weight:900;font-size:13px;border-radius:18px;display:flex;align-items:center;justify-content:center;border:3px solid white;box-shadow:0 12px 30px rgba(15,23,42,0.35);">${count}</div>`,
           className: "complaint-cluster",
           iconSize: [size, size],
         });
@@ -107,47 +149,38 @@ export default function ComplaintMap({ points, height = "calc(100vh - 200px)" }:
 
     cluster.clearLayers();
 
-    points.forEach((p) => {
-      const urgency = (p.urgency_level as UrgencyLevel) || "low";
+    if (validPoints.length === 0) {
+      mapRef.current?.setView(DEFAULT_INDONESIA_CENTER, 5, { animate: true });
+      return;
+    }
+
+    validPoints.forEach((p) => {
+      const urgency = normalizeUrgencyLevel(p.urgency_level);
       const marker = L.marker([p.latitude, p.longitude], {
         icon: buildMarkerIcon(urgency),
         zIndexOffset: urgency === "critical" ? 1000 : urgency === "high" ? 500 : 0,
       });
-      const popupHtml = `
-        <div style="font-family:system-ui,sans-serif;min-width:200px;">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${URGENCY_HEX[urgency]};"></span>
-            <span style="font-size:11px;font-weight:700;color:#1E2A4A;text-transform:uppercase;letter-spacing:0.5px;">${URGENCY_LABEL[urgency]}</span>
-          </div>
-          <p style="font-weight:600;color:#1E2A4A;font-size:13px;margin:0 0 4px 0;">${escapeHtml(p.wilayah || "Tanpa wilayah")}</p>
-          <p style="color:#6b7280;font-size:11px;margin:0 0 8px 0;">
-            ${escapeHtml(p.category__name || "Kategori belum diklasifikasi")} · ${STATUS_LABEL[p.status] || p.status}
-          </p>
-          <a href="/complaint/${p.id}" style="display:inline-block;font-size:12px;font-weight:600;color:#2563EB;text-decoration:none;">
-            Lihat Detail →
-          </a>
-        </div>
-      `;
-      marker.bindPopup(popupHtml);
+      marker.bindTooltip(`${URGENCY_LABEL[urgency]} · ${p.wilayah || "Aduan"}`, {
+        direction: "top",
+        opacity: 0.95,
+      });
+      marker.bindPopup(buildPopupHtml(p, urgency));
       cluster.addLayer(marker);
     });
 
-    if (points.length > 0 && mapRef.current) {
-      const bounds = L.latLngBounds(points.map((p) => [p.latitude, p.longitude] as [number, number]));
+    if (mapRef.current) {
+      const bounds = L.latLngBounds(validPoints.map((p) => [p.latitude, p.longitude] as [number, number]));
       if (bounds.isValid()) {
-        mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 });
+        mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 13, animate: true });
       }
     }
-  }, [points]);
+  }, [validPoints]);
 
-  return <div ref={containerRef} style={{ height, width: "100%" }} className="rounded-2xl overflow-hidden" />;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  return (
+    <div
+      ref={containerRef}
+      style={{ height, width: "100%" }}
+      className="relative z-0 isolate overflow-hidden rounded-2xl bg-blue-50"
+    />
+  );
 }

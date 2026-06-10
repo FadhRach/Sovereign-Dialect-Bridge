@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
+    "anymail",
     # Local apps
     "accounts",
     "complaints",
@@ -76,8 +77,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 # -----------------------------------------------------------------------------
 # Database — DATABASE_URL diparse otomatis oleh django-environ.
-# Local dev bisa pakai sqlite: DATABASE_URL=sqlite:///db.sqlite3
-# Production pakai Supabase Postgres via Session Pooler.
+# Local dev dan production pakai Supabase Postgres via Session Pooler.
 #
 # CONN_MAX_AGE 60 detik = persistent connection per worker (kurangi TCP+TLS
 # handshake ~50-200 ms per request). CONN_HEALTH_CHECKS hindari pakai koneksi
@@ -113,12 +113,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Cloudinary — opsional. Hanya aktif jika 3 env var terisi.
 # -----------------------------------------------------------------------------
 CLOUDINARY_CLOUD_NAME = env("CLOUDINARY_CLOUD_NAME", default="")
-if CLOUDINARY_CLOUD_NAME:
+CLOUDINARY_API_KEY = env("CLOUDINARY_API_KEY", default="")
+CLOUDINARY_API_SECRET = env("CLOUDINARY_API_SECRET", default="")
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
     INSTALLED_APPS += ["cloudinary", "cloudinary_storage"]
     CLOUDINARY_STORAGE = {
         "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
-        "API_KEY": env("CLOUDINARY_API_KEY"),
-        "API_SECRET": env("CLOUDINARY_API_SECRET"),
+        "API_KEY": CLOUDINARY_API_KEY,
+        "API_SECRET": CLOUDINARY_API_SECRET,
     }
     DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
@@ -128,6 +130,24 @@ if CLOUDINARY_CLOUD_NAME:
 # -----------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:3000"])
 CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://.*\.vercel\.app$"]
+
+# -----------------------------------------------------------------------------
+# Auth integrations — Google login + reset password.
+# -----------------------------------------------------------------------------
+GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+PASSWORD_RESET_CODE_TTL_MINUTES = env.int("PASSWORD_RESET_CODE_TTL_MINUTES", default=10)
+PASSWORD_RESET_MAX_ATTEMPTS = env.int("PASSWORD_RESET_MAX_ATTEMPTS", default=5)
+PASSWORD_RESET_DEBUG_CODE = env.bool("PASSWORD_RESET_DEBUG_CODE", default=DEBUG)
+
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend" if DEBUG else "anymail.backends.brevo.EmailBackend",
+)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Sovereign Dialect-Bridge <no-reply@localhost>")
+
+ANYMAIL = {
+    "BREVO_API_KEY": env("BREVO_API_KEY", default=""),
+}
 
 # -----------------------------------------------------------------------------
 # DRF + Throttling

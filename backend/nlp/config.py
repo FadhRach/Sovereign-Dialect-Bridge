@@ -74,7 +74,10 @@ NER_MODEL_ID = _resolve_ner_model()
 # ─────────────────────────────────────────────────────────────────────────────
 MIN_DIALECT_CONF = 0.35       # ambang minimum confidence dialect detector
 MIN_WORDS_NEURAL = 40          # di bawah ini summarize pakai TextRank
-SUMMARIZER_MODEL = os.environ.get("SUMMARIZER_MODEL", "mt5").strip().lower()
+NLP_ENABLED = os.environ.get("NLP_ENABLED", "false").lower() in ("1", "true", "yes")
+DEFAULT_SUMMARIZER_MODEL = "mt5" if NLP_ENABLED else "textrank"
+DEFAULT_WARMUP_SUMMARIZERS = "mt5,indot5" if NLP_ENABLED else ""
+SUMMARIZER_MODEL = os.environ.get("SUMMARIZER_MODEL", DEFAULT_SUMMARIZER_MODEL).strip().lower()
 SUMMARIZER_FALLBACKS = [
     item.strip().lower()
     for item in os.environ.get("SUMMARIZER_FALLBACKS", "ner,textrank,first_sentences").split(",")
@@ -82,7 +85,7 @@ SUMMARIZER_FALLBACKS = [
 ]
 WARMUP_SUMMARIZERS = [
     item.strip().lower()
-    for item in os.environ.get("WARMUP_SUMMARIZERS", "mt5,indot5").split(",")
+    for item in os.environ.get("WARMUP_SUMMARIZERS", DEFAULT_WARMUP_SUMMARIZERS).split(",")
     if item.strip()
 ]
 MT5_MAX_INPUT = 512             # potong input agar inference CPU lebih cepat

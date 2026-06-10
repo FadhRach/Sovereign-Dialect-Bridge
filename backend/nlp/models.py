@@ -74,6 +74,9 @@ class _Loader:
 
         Aman dipanggil berkali-kali — thread cuma start sekali.
         """
+        if not is_enabled():
+            logger.info("[nlp] NLP_ENABLED=false → skip background warmup")
+            return
         if self._warmup_started.is_set():
             return
         self._warmup_started.set()

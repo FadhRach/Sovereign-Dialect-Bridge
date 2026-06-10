@@ -37,6 +37,8 @@ protobuf==4.25.3                  # dibutuhkan SentencePiece/mT5 tokenizer
 safetensors==0.4.5                # format file model (lebih cepat dari pickle)
 accelerate==1.0.1                 # low_cpu_mem_usage=True saat load model
 huggingface-hub==0.25.1           # auto-download model dari HF Hub
+google-auth==2.35.0               # verifikasi Google ID token untuk login Google
+django-anymail[brevo]==11.1        # Brevo transactional email via API (tanpa IP whitelist)
 
 # Dialect detector (joblib + sklearn-LR + TF-IDF)
 joblib==1.4.2

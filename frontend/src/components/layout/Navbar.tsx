@@ -4,10 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Globe, Menu, X, LayoutDashboard,
+  Menu, X, LayoutDashboard,
   PlusSquare, ShieldCheck, LogOut, User,
 } from "lucide-react";
 import { useAuth } from "@/components/features/auth/AuthProvider";
+import Logo from "@/components/ui/Logo";
 import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
@@ -35,12 +36,10 @@ export default function Navbar() {
             href={isAuthenticated ? (isAdmin ? "/admin" : "/dashboard") : "/"}
             className="flex items-center gap-2.5 flex-shrink-0"
           >
-            <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center">
-              <Globe className="w-4 h-4 text-white" />
-            </div>
+            <Logo variant="blue" size="sm" />
             <div className="leading-tight hidden sm:block">
-              <p className="font-bold text-[#1E2A4A] text-sm leading-none">Dialect-Bridge</p>
-              <p className="text-gray-400 text-[10px] leading-none mt-0.5">Sovereign Platform</p>
+              <p className="font-bold text-[#1E2A4A] text-sm leading-none">sovereign</p>
+              <p className="text-gray-400 text-[10px] leading-none mt-0.5">dialect bridge</p>
             </div>
           </Link>
 

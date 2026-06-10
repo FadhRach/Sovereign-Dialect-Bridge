@@ -33,7 +33,7 @@ from typing import Callable, Optional
 # Kalau pipeline jalan di fallback mode (tanpa neural), torch tidak ke-load sama sekali.
 
 from . import config
-from .models import ModelKind, loader
+from .models import ModelKind, is_enabled, loader
 
 logger = logging.getLogger(__name__)
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
@@ -177,8 +177,8 @@ def translate_to_indonesian(text: str, dialect: str) -> str:
 
     # Stage 2.1 — NLLB local
     nllb_code = config.DIALECT_TO_NLLB.get(dialect)
-    nllb_model = loader.get(ModelKind.NLLB) if nllb_code else None
-    nllb_tok = loader.get_tokenizer(ModelKind.NLLB) if nllb_code else None
+    nllb_model = loader.get(ModelKind.NLLB) if nllb_code and is_enabled() else None
+    nllb_tok = loader.get_tokenizer(ModelKind.NLLB) if nllb_code and is_enabled() else None
     if nllb_model is not None and nllb_tok is not None and nllb_code is not None:
         try:
             translated = _translate_nllb(text, nllb_code, nllb_tok, nllb_model)
@@ -393,6 +393,9 @@ def summarize(text: str) -> str:
         # Teks pendek — pakai 2 kalimat pertama
         return _summarize_first_sentences(text)
 
+    if not is_enabled():
+        return _summarize_without_neural(text)
+
     summary = _try_summarizer(config.SUMMARIZER_MODEL, text)
     if summary:
         return summary
@@ -405,6 +408,18 @@ def summarize(text: str) -> str:
             return summary
 
     return _summarize_first_sentences(text)
+
+
+def _summarize_without_neural(text: str) -> str:
+    """Fallback ringkas saat NLP_ENABLED=false tanpa import torch/model berat."""
+    for fallback_name in config.SUMMARIZER_FALLBACKS:
+        if fallback_name in ("mt5", "indot5"):
+            continue
+        summary = _try_summarizer(fallback_name, text)
+        if summary:
+            return summary
+
+    return _summarize_textrank(text) or _summarize_first_sentences(text)
 
 
 def _try_summarizer(name: str, text: str) -> str:
@@ -428,13 +443,13 @@ def _try_summarizer(name: str, text: str) -> str:
 
 def _summarize_seq2seq(name: str, text: str) -> str:
     """Inference summarizer abstractive dari model seq2seq yang sudah loaded."""
-    import torch
-
     params = _seq2seq_summary_params(name)
     model = loader.get_if_loaded(params["kind"])
     tok = loader.get_tokenizer_if_loaded(params["kind"])
     if model is None or tok is None:
         return ""
+
+    import torch
 
     prompt = params["prefix"] + text[: params["max_input"]]
     enc = tok(prompt, return_tensors="pt", truncation=True, max_length=params["max_input"])

@@ -63,8 +63,3 @@ export type SortKey = "created_at" | "urgency_level" | "status" | "wilayah";
 export function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 }
-
-export function formatWeekLabel(week: string) {
-  const parts = week.split("-");
-  return `W${parts[1] ?? ""}`;
-}

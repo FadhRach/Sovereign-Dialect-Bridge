@@ -25,6 +25,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<string | null>;
+  loginWithGoogle: (credential: string) => Promise<string | null>;
   register: (data: RegisterPayload) => Promise<string | null>;
   logout: () => Promise<void>;
 }
@@ -94,6 +95,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [router, syncFromStorage]
   );
 
+  const loginWithGoogle = useCallback(
+    async (credential: string): Promise<string | null> => {
+      try {
+        const res = await api.post<ApiResponse<AuthResponse>>("/api/auth/google/", { credential });
+        const data = res.data.data;
+        if (!data) return res.data.message;
+        saveTokens(data.access, data.refresh);
+        syncFromStorage();
+        router.push(data.user.role === "admin" ? "/admin" : "/dashboard");
+        return null;
+      } catch (err: unknown) {
+        return extractErrorMessage(err, "Login Google gagal.");
+      }
+    },
+    [router, syncFromStorage]
+  );
+
   const logout = useCallback(async (): Promise<void> => {
     try {
       const refresh = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
@@ -108,8 +126,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, syncFromStorage]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, register, logout }),
-    [state, login, register, logout]
+    () => ({ ...state, login, loginWithGoogle, register, logout }),
+    [state, login, loginWithGoogle, register, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -113,7 +113,7 @@ export default function AdminMapPage() {
         <div className="p-4 lg:p-6 lg:pt-0">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
             {/* Map */}
-            <div className="relative">
+            <div id="peta-aduan" className="relative scroll-mt-28">
               {loading ? (
                 <div className="h-[calc(100vh-200px)] bg-gray-100 rounded-2xl flex items-center justify-center">
                   <Spinner size="lg" label="Memuat data peta..." />

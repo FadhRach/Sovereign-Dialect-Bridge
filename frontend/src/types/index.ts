@@ -28,6 +28,10 @@ export interface User {
   address_postal_code: string | null;
   date_joined: string;
   updated_at: string;
+  complaints_total?: number;
+  complaints_pending?: number;
+  complaints_resolved?: number;
+  last_activity?: string | null;
 }
 
 export interface UserSummary {
@@ -118,7 +122,36 @@ export interface DashboardStats {
   by_category: { name: string; count: number }[];
   by_province: { province: string; count: number }[];
   by_dialect: Record<string, number>;
+  monthly_trend: { month: string; label: string; count: number }[];
   weekly_trend: { week: string; count: number }[];
+}
+
+export type AdminSettingType = "boolean" | "choice" | "csv";
+
+export interface AdminSetting {
+  key: string;
+  value: string;
+  source: "environment" | "database";
+  label: string;
+  description: string;
+  type: AdminSettingType;
+  choices: string[];
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface AdminModelStatus {
+  loading?: boolean;
+  loaded?: boolean;
+  failed?: boolean;
+  load_ms?: number;
+  elapsed_ms?: number;
+  error?: string;
+}
+
+export interface AdminSettingsResponse {
+  settings: AdminSetting[];
+  model_status: Record<string, AdminModelStatus>;
 }
 
 export interface AuthTokens {

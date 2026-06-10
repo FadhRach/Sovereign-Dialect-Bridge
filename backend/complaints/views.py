@@ -1,8 +1,11 @@
 import datetime
+import os
 import threading
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
@@ -10,14 +13,20 @@ from django.utils import timezone
 
 from django.db import models
 from accounts.permissions import IsAdminUser
-from .models import Complaint, Category, AdminNote, StatusHistory, Notification
+from .models import Complaint, Category, AdminNote, StatusHistory, Notification, SystemSetting
 from .serializers import (
+    ADMIN_SETTING_DEFINITIONS,
+    AdminSettingUpdateSerializer,
+    ComplaintDeleteSerializer,
     ComplaintListSerializer,
     ComplaintDetailSerializer,
     ComplaintCreateSerializer,
     ComplaintUpdateSerializer,
     CategorySerializer,
 )
+
+MAX_PHOTO_UPLOAD_BYTES = 5 * 1024 * 1024
+ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 def success_response(data=None, message="", status_code=status.HTTP_200_OK):
@@ -59,6 +68,41 @@ class ComplaintListCreateView(APIView):
         )
 
 
+class ComplaintPhotoUploadView(APIView):
+    """Upload foto pendukung aduan ke Cloudinary memakai credential backend."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        photo = request.FILES.get("photo")
+        if photo is None:
+            return error_response("File foto wajib dikirim.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        validation_error = _validate_photo_file(photo)
+        if validation_error:
+            return error_response(validation_error, status_code=status.HTTP_400_BAD_REQUEST)
+
+        if not _cloudinary_is_configured():
+            return error_response(
+                "Cloudinary belum dikonfigurasi di backend.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            uploaded = _upload_photo_to_cloudinary(photo, request.user.id)
+        except Exception as exc:
+            return error_response(
+                f"Upload foto gagal: {str(exc)[:160]}",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return success_response(
+            data=uploaded,
+            message="Foto berhasil diupload.",
+            status_code=status.HTTP_201_CREATED,
+        )
+
+
 class ComplaintDetailView(APIView):
     """
     GET   → detail aduan lengkap + NLP result + history
@@ -86,11 +130,24 @@ class ComplaintDetailView(APIView):
         )
 
     def delete(self, request, pk):
-        if request.user.role != "admin":
-            return error_response("Akses ditolak.", status_code=status.HTTP_403_FORBIDDEN)
-        complaint = get_object_or_404(Complaint, pk=pk)
+        if request.user.role == "admin":
+            complaint = get_object_or_404(Complaint, pk=pk)
+            serializer = ComplaintDeleteSerializer(data=request.data)
+            if not serializer.is_valid():
+                return error_response("Alasan hapus aduan wajib diisi.", errors=serializer.errors)
+            _notify_user_complaint_deleted(complaint, request.user, serializer.validated_data["reason"])
+            complaint.delete()
+            return success_response(message="Aduan berhasil dihapus.")
+
+        complaint = get_object_or_404(Complaint, pk=pk, user=request.user)
+        if complaint.status != "pending":
+            return error_response(
+                "Aduan hanya bisa dibatalkan saat masih menunggu peninjauan.",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        _notify_admins_complaint_cancelled(complaint, request.user)
         complaint.delete()
-        return success_response(message="Aduan berhasil dihapus.")
+        return success_response(message="Aduan berhasil dibatalkan.")
 
 
 class ComplaintMapView(APIView):
@@ -163,7 +220,7 @@ class DashboardStatsView(APIView):
             row["detected_dialect"]: row["count"]
             for row in qs.exclude(detected_dialect="xx").values("detected_dialect").annotate(count=Count("id"))
         }
-        weekly_trend = _build_weekly_trend(qs)
+        monthly_trend = _build_monthly_trend(qs)
 
         stats = {
             "total": qs.count(),
@@ -172,7 +229,8 @@ class DashboardStatsView(APIView):
             "by_category": by_category,
             "by_province": by_province,
             "by_dialect": by_dialect,
-            "weekly_trend": weekly_trend,
+            "monthly_trend": monthly_trend,
+            "weekly_trend": _build_weekly_trend(qs),
             # Flat aliases for stat cards (backward compat with existing frontend)
             "pending": by_status.get("pending", 0),
             "in_review": by_status.get("in_review", 0),
@@ -191,28 +249,103 @@ class AdminUserListView(APIView):
 
     def get(self, request):
         from accounts.models import CustomUser
-        from accounts.serializers import ProfileSerializer
-        users = CustomUser.objects.all().order_by("-date_joined")[: self.MAX_LIST_SIZE]
-        serializer = ProfileSerializer(users, many=True)
-        return success_response(data=serializer.data)
+
+        role = request.query_params.get("role")
+        status_filter = request.query_params.get("status")
+        users = CustomUser.objects.annotate(
+            complaints_total=Count("complaints"),
+            complaints_pending=Count("complaints", filter=models.Q(complaints__status="pending")),
+            complaints_resolved=Count("complaints", filter=models.Q(complaints__status="resolved")),
+        )
+        if role in ("user", "admin"):
+            users = users.filter(role=role)
+        if status_filter == "active":
+            users = users.filter(is_active=True)
+        elif status_filter == "banned":
+            users = users.filter(is_active=False)
+        users = users.order_by("-date_joined")[: self.MAX_LIST_SIZE]
+        return success_response(data=[_serialize_admin_user(user) for user in users])
 
 
 class AdminUserDetailView(APIView):
     """[Admin] Update role atau status aktif user."""
     permission_classes = [IsAdminUser]
 
+    def get(self, request, pk):
+        from accounts.models import CustomUser
+
+        user = get_object_or_404(
+            CustomUser.objects.annotate(
+                complaints_total=Count("complaints"),
+                complaints_pending=Count("complaints", filter=models.Q(complaints__status="pending")),
+                complaints_resolved=Count("complaints", filter=models.Q(complaints__status="resolved")),
+            ),
+            pk=pk,
+        )
+        return success_response(data=_serialize_admin_user(user))
+
     def patch(self, request, pk):
         from accounts.models import CustomUser
         user = get_object_or_404(CustomUser, pk=pk)
         role = request.data.get("role")
-        is_active = request.data.get("is_active")
+        is_active = _parse_optional_bool(request.data.get("is_active"))
+        ban_reason = str(request.data.get("ban_reason") or "").strip()
+        old_is_active = user.is_active
+
+        if user.pk == request.user.pk and role == "user":
+            return error_response("Admin tidak bisa menurunkan role akun sendiri.", status_code=status.HTTP_409_CONFLICT)
+        if user.pk == request.user.pk and is_active is False:
+            return error_response("Admin tidak bisa menonaktifkan akun sendiri.", status_code=status.HTTP_409_CONFLICT)
         if role in ("user", "admin"):
             user.role = role
         if is_active is not None:
-            user.is_active = bool(is_active)
+            if is_active is False and not ban_reason:
+                return error_response("Alasan ban/nonaktif wajib diisi.")
+            user.is_active = is_active
         user.save()
-        from accounts.serializers import ProfileSerializer
-        return success_response(data=ProfileSerializer(user).data, message="User berhasil diperbarui.")
+
+        if old_is_active != user.is_active:
+            _notify_user_account_status_changed(user, request.user, ban_reason)
+
+        refreshed = CustomUser.objects.annotate(
+            complaints_total=Count("complaints"),
+            complaints_pending=Count("complaints", filter=models.Q(complaints__status="pending")),
+            complaints_resolved=Count("complaints", filter=models.Q(complaints__status="resolved")),
+        ).get(pk=user.pk)
+        return success_response(data=_serialize_admin_user(refreshed), message="User berhasil diperbarui.")
+
+
+class AdminSettingsView(APIView):
+    """[Admin] Lihat dan update runtime setting non-secret."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        return success_response(data={
+            "settings": _build_admin_settings_response(),
+            "model_status": _get_nlp_model_status(),
+        })
+
+    def patch(self, request):
+        serializer = AdminSettingUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response("Setting tidak valid.", errors=serializer.errors)
+
+        key = serializer.validated_data["key"]
+        value = serializer.validated_data["value"]
+        definition = ADMIN_SETTING_DEFINITIONS[key]
+        setting, _ = SystemSetting.objects.update_or_create(
+            key=key,
+            defaults={
+                "value": value,
+                "description": definition["description"],
+                "updated_by": request.user,
+            },
+        )
+        _apply_runtime_setting_to_process(key, value)
+        return success_response(
+            data=_serialize_admin_setting(setting),
+            message="Setting berhasil diperbarui.",
+        )
 
 
 def _filter_complaints(request):
@@ -325,6 +458,194 @@ def _apply_complaint_update(complaint, admin_user, data):
     complaint.save()
 
 
+def _notify_admins_complaint_cancelled(complaint, user):
+    """Kirim notifikasi ke admin saat warga membatalkan aduan."""
+    from accounts.models import CustomUser
+
+    admins = CustomUser.objects.filter(role="admin", is_active=True).only("id")
+    notifications = [
+        Notification(
+            user=admin,
+            complaint=None,
+            title=f"Aduan #{complaint.id} dibatalkan",
+            message=(
+                f"{user.full_name} membatalkan aduan di wilayah {complaint.wilayah}. "
+                "Aduan sudah dihapus dari daftar aktif."
+            ),
+        )
+        for admin in admins
+    ]
+    if notifications:
+        Notification.objects.bulk_create(notifications)
+
+
+def _notify_user_complaint_deleted(complaint, admin_user, reason: str):
+    """Kirim notifikasi ke pelapor sebelum aduan dihapus admin."""
+    if not complaint.user_id:
+        return
+    Notification.objects.create(
+        user_id=complaint.user_id,
+        complaint=None,
+        title=f"Aduan #{complaint.id} dihapus admin",
+        message=(
+            f"Aduan di wilayah {complaint.wilayah} dihapus oleh {admin_user.full_name}. "
+            f"Alasan: {reason}"
+        ),
+    )
+
+
+def _notify_user_account_status_changed(user, admin_user, reason: str):
+    """Kirim notifikasi saat akun user diaktifkan atau dinonaktifkan admin."""
+    if user.is_active:
+        title = "Akun Anda diaktifkan kembali"
+        message = f"Akun Anda diaktifkan kembali oleh {admin_user.full_name}."
+    else:
+        title = "Akun Anda dinonaktifkan"
+        message = f"Akun Anda dinonaktifkan oleh {admin_user.full_name}. Alasan: {reason}"
+    Notification.objects.create(user=user, complaint=None, title=title, message=message)
+
+
+def _serialize_admin_user(user) -> dict:
+    """Serialize user admin dengan statistik aduan ringkas."""
+    from accounts.serializers import ProfileSerializer
+
+    data = ProfileSerializer(user).data
+    data["complaints_total"] = getattr(user, "complaints_total", 0)
+    data["complaints_pending"] = getattr(user, "complaints_pending", 0)
+    data["complaints_resolved"] = getattr(user, "complaints_resolved", 0)
+    data["last_activity"] = user.updated_at.isoformat() if user.updated_at else None
+    return data
+
+
+def _parse_optional_bool(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "1", "yes"):
+            return True
+        if normalized in ("false", "0", "no"):
+            return False
+    return bool(value)
+
+
+def _build_admin_settings_response() -> list[dict]:
+    stored_settings = {setting.key: setting for setting in SystemSetting.objects.select_related("updated_by")}
+    data = []
+    for key in ADMIN_SETTING_DEFINITIONS:
+        setting = stored_settings.get(key)
+        if setting:
+            data.append(_serialize_admin_setting(setting))
+            continue
+        definition = ADMIN_SETTING_DEFINITIONS[key]
+        env_value = os.environ.get(key, definition["default"])
+        data.append({
+            "key": key,
+            "value": env_value,
+            "source": "environment",
+            "label": definition["label"],
+            "description": definition["description"],
+            "type": definition["type"],
+            "choices": definition.get("choices", []),
+            "updated_at": None,
+            "updated_by": None,
+        })
+    return data
+
+
+def _get_nlp_model_status() -> dict:
+    try:
+        from nlp.models import loader
+        return loader.status()
+    except Exception as exc:
+        return {"error": str(exc)[:200]}
+
+
+def _serialize_admin_setting(setting: SystemSetting) -> dict:
+    definition = ADMIN_SETTING_DEFINITIONS[setting.key]
+    return {
+        "key": setting.key,
+        "value": setting.value,
+        "source": "database",
+        "label": definition["label"],
+        "description": definition["description"],
+        "type": definition["type"],
+        "choices": definition.get("choices", []),
+        "updated_at": setting.updated_at.isoformat() if setting.updated_at else None,
+        "updated_by": setting.updated_by.full_name if setting.updated_by else None,
+    }
+
+
+def _apply_runtime_setting_to_process(key: str, value: str) -> None:
+    """Terapkan setting ke process saat ini supaya pipeline berikutnya ikut berubah."""
+    os.environ[key] = value
+    try:
+        from nlp import config as nlp_config
+    except Exception:
+        return
+
+    if key in ("NLP_ENABLED", "ALLOW_EXTERNAL_TRANSLATION"):
+        setattr(nlp_config, key, value.lower() == "true")
+        return
+    if key in ("SUMMARIZER_FALLBACKS", "WARMUP_SUMMARIZERS"):
+        setattr(nlp_config, key, [item.strip() for item in value.split(",") if item.strip()])
+        return
+    setattr(nlp_config, key, value)
+
+
+def _apply_stored_runtime_settings() -> None:
+    """Apply runtime settings tersimpan sebelum menjalankan pipeline NLP."""
+    for setting in SystemSetting.objects.filter(key__in=ADMIN_SETTING_DEFINITIONS.keys()):
+        _apply_runtime_setting_to_process(setting.key, setting.value)
+
+
+def _validate_photo_file(photo) -> str:
+    """Return pesan error jika file foto tidak valid."""
+    if photo.size > MAX_PHOTO_UPLOAD_BYTES:
+        return "Ukuran foto maksimal 5 MB."
+    if getattr(photo, "content_type", "") not in ALLOWED_PHOTO_TYPES:
+        return "Format foto harus JPG, PNG, atau WebP."
+    return ""
+
+
+def _cloudinary_is_configured() -> bool:
+    storage = getattr(settings, "CLOUDINARY_STORAGE", {})
+    return all([
+        storage.get("CLOUD_NAME"),
+        storage.get("API_KEY"),
+        storage.get("API_SECRET"),
+    ])
+
+
+def _upload_photo_to_cloudinary(photo, user_id: int) -> dict:
+    import cloudinary
+    import cloudinary.uploader
+
+    storage = settings.CLOUDINARY_STORAGE
+    cloudinary.config(
+        cloud_name=storage["CLOUD_NAME"],
+        api_key=storage["API_KEY"],
+        api_secret=storage["API_SECRET"],
+        secure=True,
+    )
+    result = cloudinary.uploader.upload(
+        photo,
+        folder=f"sovereign-dialect-bridge/complaints/user-{user_id}",
+        resource_type="image",
+        overwrite=False,
+        unique_filename=True,
+    )
+    secure_url = result.get("secure_url")
+    if not secure_url:
+        raise ValueError("Cloudinary tidak mengembalikan URL aman.")
+    return {
+        "photo_url": secure_url,
+        "public_id": result.get("public_id", ""),
+    }
+
+
 class NotificationListView(APIView):
     """List notifikasi user yang sedang login, terbaru di atas."""
     permission_classes = [IsAuthenticated]
@@ -421,6 +742,30 @@ def _build_weekly_trend(qs) -> list:
     return trend
 
 
+def _build_monthly_trend(qs) -> list:
+    """Return daftar {"month": "YYYY-MM", "label": "Jan 2026", "count": int} untuk 12 bulan terakhir."""
+    today = timezone.now().date()
+    first_day_this_month = today.replace(day=1)
+    trend = []
+    for months_ago in range(11, -1, -1):
+        month_start = _shift_month(first_day_this_month, -months_ago)
+        month_end = _shift_month(month_start, 1)
+        count = qs.filter(created_at__date__gte=month_start, created_at__date__lt=month_end).count()
+        trend.append({
+            "month": month_start.strftime("%Y-%m"),
+            "label": month_start.strftime("%b %Y"),
+            "count": count,
+        })
+    return trend
+
+
+def _shift_month(date_value: datetime.date, offset: int) -> datetime.date:
+    month_index = date_value.year * 12 + date_value.month - 1 + offset
+    year = month_index // 12
+    month = month_index % 12 + 1
+    return date_value.replace(year=year, month=month, day=1)
+
+
 def _run_nlp_pipeline(complaint_id):
     """Jalankan NLP pipeline dan update complaint. Dipanggil di background thread.
 
@@ -440,6 +785,7 @@ def _run_nlp_pipeline(complaint_id):
     # signal.alarm hanya bekerja di main thread; di background thread pakai
     # try/except biasa — model punya internal early stopping & max_new_tokens
     try:
+        _apply_stored_runtime_settings()
         from nlp import pipeline as nlp_pipeline
 
         complaint = Complaint.objects.get(pk=complaint_id)

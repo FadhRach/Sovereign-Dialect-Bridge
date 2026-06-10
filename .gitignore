@@ -93,7 +93,9 @@ logs/
 docs/
 .github
 CLAUDE.md
+AGENTS.md
 .claude
+.playwright-mcp/
 
 # DEPLOY ARTIFACTS
 # Folder clone HF Space (kalau ada di root monorepo)

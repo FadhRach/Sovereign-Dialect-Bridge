@@ -134,3 +134,25 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Notification #{self.id} → {self.user_id}"
+
+
+class SystemSetting(models.Model):
+    """Runtime setting non-secret yang boleh diubah admin dari dashboard."""
+
+    key = models.CharField(max_length=80, unique=True)
+    value = models.TextField(blank=True)
+    description = models.TextField(blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_system_settings",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["key"]
+
+    def __str__(self):
+        return self.key

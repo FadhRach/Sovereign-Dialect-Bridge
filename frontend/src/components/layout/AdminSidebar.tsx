@@ -4,16 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, MapPin, Users, LogOut, Menu, X, Globe,
-  User as UserIcon,
+  LayoutDashboard, MapPin, Users, LogOut, Menu, X,
+  User as UserIcon, Settings,
 } from "lucide-react";
 import { useAuth } from "@/components/features/auth/AuthProvider";
+import Logo from "@/components/ui/Logo";
 import NotificationBell from "./NotificationBell";
 
 const NAV_ITEMS = [
   { href: "/admin",       label: "Dashboard",  Icon: LayoutDashboard },
   { href: "/admin/map",   label: "Peta Aduan", Icon: MapPin },
   { href: "/admin/users", label: "Pengguna",   Icon: Users },
+  { href: "/admin/settings", label: "Setting", Icon: Settings },
+  { href: "/admin/profile", label: "Profil", Icon: UserIcon },
 ];
 
 interface AdminShellProps {
@@ -33,12 +36,10 @@ export default function AdminShell({ title, subtitle, children }: AdminShellProp
       <div className="relative bg-[#1E2A4A] p-5 overflow-hidden">
         <div className="absolute inset-0 batik-overlay opacity-[0.08] pointer-events-none" />
         <div className="relative flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-[#2563EB] rounded-xl flex items-center justify-center flex-shrink-0">
-            <Globe className="w-4 h-4 text-white" />
-          </div>
+          <Logo variant="blue" size="md" />
           <div className="leading-tight min-w-0">
-            <p className="font-bold text-white text-sm leading-none truncate">Dialect-Bridge</p>
-            <p className="text-blue-300/70 text-[10px] leading-none mt-1">Sovereign Admin Panel</p>
+            <p className="font-bold text-white text-sm leading-none truncate">sovereign</p>
+            <p className="text-blue-300/70 text-[10px] leading-none mt-1">Admin Panel</p>
           </div>
         </div>
       </div>
@@ -119,7 +120,7 @@ export default function AdminShell({ title, subtitle, children }: AdminShellProp
 
       {/* Main */}
       <div className="flex-1 lg:pl-60 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-10 bg-[#F4F5F7]/95 backdrop-blur-sm border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center gap-3">
+        <header className="sticky top-0 z-40 bg-[#F4F5F7]/95 backdrop-blur-sm border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center gap-3">
           <button
             onClick={() => setOpen(true)}
             className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"

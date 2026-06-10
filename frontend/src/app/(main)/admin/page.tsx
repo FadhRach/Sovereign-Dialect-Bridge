@@ -9,24 +9,31 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   MessageSquare, TrendingUp, AlertTriangle,
-  Clock, CheckCircle2,
+  Clock, CheckCircle2, MapPinned,
 } from "lucide-react";
 import { useAuth } from "@/components/features/auth/AuthProvider";
 import api from "@/lib/api";
 import AdminShell from "@/components/layout/AdminSidebar";
 import Spinner from "@/components/ui/Spinner";
 import Alert from "@/components/ui/Alert";
-import type { Complaint, DashboardStats, ApiResponse } from "@/types";
+import type { Complaint, DashboardStats, ApiResponse, MapPoint } from "@/types";
 
 import StatCard from "./_components/StatCard";
 import AdminFilters from "./_components/AdminFilters";
 import AdminComplaintTable from "./_components/AdminComplaintTable";
-import { WeeklyTrendChart, CategoryDonut } from "./_components/AdminCharts";
+import { MonthlyTrendChart, CategoryDonut } from "./_components/AdminCharts";
 import QuickReviewModal from "./_components/QuickReviewModal";
 import { URGENCY_ORDER, type SortKey } from "./_components/constants";
+
+const MiniComplaintMap = dynamic(() => import("@/components/features/map/MiniComplaintMap"), {
+  ssr: false,
+  loading: () => <div className="h-[240px] rounded-2xl bg-blue-50 animate-pulse" />,
+});
 
 export default function AdminPage() {
   const { isAdmin, isLoading: authLoading } = useAuth();
@@ -34,6 +41,7 @@ export default function AdminPage() {
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [mapPoints, setMapPoints] = useState<MapPoint[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [listLoading, setListLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +64,12 @@ export default function AdminPage() {
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const res = await api.get<ApiResponse<DashboardStats>>("/api/dashboard/stats/");
-      setStats(res.data.data);
+      const [statsRes, mapRes] = await Promise.all([
+        api.get<ApiResponse<DashboardStats>>("/api/dashboard/stats/"),
+        api.get<ApiResponse<MapPoint[]>>("/api/complaints/map/"),
+      ]);
+      setStats(statsRes.data.data);
+      setMapPoints(mapRes.data.data ?? []);
     } catch {
       setError("Gagal memuat statistik.");
     } finally {
@@ -181,10 +193,40 @@ export default function AdminPage() {
         {/* Charts row */}
         {stats && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <WeeklyTrendChart weekly={stats.weekly_trend ?? []} />
+            <MonthlyTrendChart monthly={stats.monthly_trend ?? []} />
             <CategoryDonut categories={stats.by_category ?? []} />
           </div>
         )}
+
+        <section className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <MapPinned className="h-4 w-4 text-[#2563EB]" />
+                <h2 className="text-sm font-bold text-[#1E2A4A]">Sebaran Aduan Nasional</h2>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Menampilkan {mapPoints.length} aduan yang punya koordinat dari seluruh database.
+              </p>
+            </div>
+            <Link
+              href="/admin/map#peta-aduan"
+              className="inline-flex items-center justify-center rounded-xl bg-[#EFF6FF] px-3 py-2 text-xs font-bold text-[#2563EB] transition-colors hover:bg-blue-100"
+            >
+              Buka peta penuh
+            </Link>
+          </div>
+          {mapPoints.length > 0 ? (
+            <MiniComplaintMap points={mapPoints} height="240px" />
+          ) : (
+            <div className="flex h-[240px] items-center justify-center rounded-2xl border border-dashed border-blue-100 bg-blue-50/60 text-center">
+              <div>
+                <p className="text-sm font-bold text-[#1E2A4A]">Belum ada titik koordinat</p>
+                <p className="mt-1 text-xs text-gray-500">Aduan akan muncul ketika pelapor memilih lokasi.</p>
+              </div>
+            </div>
+          )}
+        </section>
 
         {/* Filter + table */}
         <div className="bg-white rounded-2xl border border-gray-100">

@@ -20,6 +20,7 @@ function relativeTime(iso: string): string {
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [data, setData] = useState<NotificationResponse>({ results: [], unread: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -114,8 +115,8 @@ export default function NotificationBell() {
               data.results.map((n) => {
                 const inner = (
                   <div
-                    className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
-                      !n.is_read ? "bg-blue-50/40" : ""
+                    className={`mx-2 my-1 rounded-2xl border px-3 py-3 transition-all duration-200 hover:border-blue-100 hover:bg-blue-50/50 hover:shadow-sm ${
+                      !n.is_read ? "border-blue-100 bg-blue-50/50" : "border-gray-100 bg-white"
                     }`}
                   >
                     <div className="flex items-start gap-2">
@@ -123,9 +124,20 @@ export default function NotificationBell() {
                         <span className="w-1.5 h-1.5 bg-[#2563EB] rounded-full mt-2 flex-shrink-0" />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-[#1E2A4A] truncate">{n.title}</p>
-                        <p className="text-xs text-gray-600 mt-1 leading-relaxed line-clamp-2">{n.message}</p>
-                        <p className="text-[10px] text-gray-400 mt-1">{relativeTime(n.created_at)}</p>
+                        <p className={`text-xs font-bold text-[#1E2A4A] ${expandedId === n.id ? "" : "truncate"}`}>
+                          {n.title}
+                        </p>
+                        <p className={`text-xs text-gray-600 mt-1 leading-relaxed ${expandedId === n.id ? "line-clamp-none" : "line-clamp-2"}`}>
+                          {n.message}
+                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <p className="text-[10px] text-gray-400">{relativeTime(n.created_at)}</p>
+                          {expandedId !== n.id && (
+                            <span className="text-[10px] font-semibold text-[#2563EB] opacity-0 transition-opacity group-hover:opacity-100">
+                              Hover untuk detail
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -135,8 +147,12 @@ export default function NotificationBell() {
                     <Link
                       key={n.id}
                       href={`/complaint/${n.complaint_id}`}
+                      onMouseEnter={() => setExpandedId(n.id)}
+                      onMouseLeave={() => setExpandedId((current) => (current === n.id ? null : current))}
+                      onFocus={() => setExpandedId(n.id)}
+                      onBlur={() => setExpandedId((current) => (current === n.id ? null : current))}
                       onClick={() => { setOpen(false); if (!n.is_read) markRead(n.id); }}
-                      className="block"
+                      className="block group"
                     >
                       {inner}
                     </Link>
@@ -145,8 +161,12 @@ export default function NotificationBell() {
                 return (
                   <button
                     key={n.id}
+                    onMouseEnter={() => setExpandedId(n.id)}
+                    onMouseLeave={() => setExpandedId((current) => (current === n.id ? null : current))}
+                    onFocus={() => setExpandedId(n.id)}
+                    onBlur={() => setExpandedId((current) => (current === n.id ? null : current))}
                     onClick={() => { if (!n.is_read) markRead(n.id); }}
-                    className="block w-full text-left"
+                    className="block w-full text-left group"
                   >
                     {inner}
                   </button>
