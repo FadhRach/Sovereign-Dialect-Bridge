@@ -8,7 +8,7 @@ Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung **12 
 - Dian Rakhmawati Lestari (2802539085)
 - Matthew Ken Susanto (2802407736)
 - Nasauramecca Nour Haqqanshah Shodiqin (2802541921)
-- Bintang Nur Fadhlillah ()
+- Bintang Nur Fadhlillah (2802536083)
 
 ## Akun Tes Lokal
 
