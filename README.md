@@ -2,6 +2,10 @@
 
 Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung **12 dialek bahasa daerah**. Warga submit aduan dalam bahasa daerahnya → AI auto-detect dialek, terjemahkan ke Bahasa Indonesia, ringkas, ekstrak entitas, klasifikasi kategori, & skor urgensi — semua di background thread agar UX tetap cepat. Admin pemerintah review & tindak lanjut via dashboard terpisah.
 
+## Link Deployed :
+- Frontend  : https://sovereign-dialect-bridge.vercel.app/
+- Backend   : https://oinovenv-sovereign-dialect-bridge-api.hf.space/dashboard/
+
 ## Contributors
 
 - Fadhlan Nur Rachman (2802491690)
@@ -109,22 +113,12 @@ npm install
 cp .env.local.example .env.local                    # NEXT_PUBLIC_API_URL=http://localhost:8000
 npm run dev                                         # http://localhost:3000
 ```
-
 > Jika frontend dipakai di port selain 3000, tambahkan ke `CORS_ALLOWED_ORIGINS` di `backend/.env`.
-
-## Catatan Penting
-
-- **NLP berat di production**: model NLLB / mT5 / NER auto-pull dari HF Hub saat boot pertama. Aktifkan `NLP_ENABLED=true` di env. Pipeline punya fallback chain — kalau model belum siap atau gagal load, fallback otomatis aktif tanpa crash.
-- **Cloudinary opsional**: env Cloudinary kosong → upload foto di-skip silently. Foto tetap preview di FE tapi tidak terupload. Lengkapi `CLOUDINARY_*` di `backend/.env` untuk mengaktifkan.
-- **Google Sign-In opsional**: set `GOOGLE_CLIENT_ID` di backend + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` di frontend (nilai sama). Kosong → tombol Google disembunyikan otomatis.
-- **Frontend deps**: Framer Motion ditambah untuk animasi landing/auth. Bundle akhir ~184 KB First Load JS (di bawah threshold Lighthouse).
 
 ## Deploy Production
 
 - **Backend** → Hugging Face Spaces (Docker SDK, port `7860`). Repo HF Space berisi konten folder `backend/` saja.
 - **Frontend** → Vercel. Root directory `frontend/`. Set `NEXT_PUBLIC_API_URL` ke domain HF Space.
 - **Database** → Supabase via **Session Pooler URI**.
-
-Runbook lengkap: `docs/DEPLOYMENT.md`.
 
 Made with care by Group 7
