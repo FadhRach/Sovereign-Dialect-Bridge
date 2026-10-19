@@ -1,21 +1,22 @@
 """
-NLP pipeline lokal (fallback) untuk Sovereign Dialect-Bridge.
+NLP pipeline orchestrator untuk Sovereign Dialect-Bridge.
 
-Model neural (NLLB translate, mT5/IndoT5 summarize, IndoBERT NER) jalan di
-layanan Modal terpisah (../../nlp-service/) dan dipicu lewat
-`nlp.modal_client`. Pipeline di file ini adalah jalur ringan tanpa torch,
-dipakai saat:
-    - Modal tidak terjangkau (network error, service down) → dipanggil
-      langsung oleh complaints/views.py sebagai pengganti hasil neural.
-    - Callback dari Modal sudah membawa translated_text/summary/entities;
-      classify_category/score_urgency/extract_keywords tetap jalan di sini
-      karena keduanya cukup dengan keyword matching, tidak butuh model.
+Alur:
+    input → detect_dialect → translate(NLLB) → summarize(configurable) → extract_entities
+                                                              → classify_category
+                                                              → score_urgency
+                                                              → extract_keywords
+                                                              → output
 
-Alur lengkap (run_pipeline):
-    input → detect_dialect → translate (deep_translator fallback)
-                            → summarize (TextRank fallback)
-                            → extract_entities (regex)
-                            → classify_category → score_urgency → extract_keywords
+Setiap stage punya FALLBACK CHAIN supaya pipeline tidak pernah crash:
+    - Dialect: joblib clf → langdetect → "xx"
+    - Translate: NLLB → deep_translator → googletrans → raw text
+    - Summarize: selected abstractive model → NER/TextRank → 2 first sentences
+    - NER: Cahya BERT → regex pattern matching
+    - Category & Urgency: keyword scoring (selalu bisa, tidak butuh model)
+
+Model di-load lazy di `nlp.models.loader` — boot Django cepat, model load di
+background thread. Lihat `nlp/models.py` untuk detail.
 """
 
 from __future__ import annotations
@@ -26,14 +27,22 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+# CATATAN: torch sengaja TIDAK di-import di top-level.
+# Import torch berat (~2-3 detik + ratusan MB RAM). Kita lazy-import
+# hanya di dalam fungsi yang butuh (_translate_nllb, _summarize_seq2seq).
+# Kalau pipeline jalan di fallback mode (tanpa neural), torch tidak ke-load sama sekali.
+
 from . import config
-from .models import loader
+from .models import ModelKind, is_enabled, loader
 
 logger = logging.getLogger(__name__)
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Result schema
+# ─────────────────────────────────────────────────────────────────────────────
 @dataclass
 class NLPResult:
     dialect: str = "xx"
@@ -50,8 +59,16 @@ class NLPResult:
 ProgressCallback = Callable[[str], None]
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Orchestrator
+# ─────────────────────────────────────────────────────────────────────────────
 def run_pipeline(raw_text: str, on_stage: Optional[ProgressCallback] = None) -> NLPResult:
-    """Jalankan pipeline lokal lengkap — dipakai saat Modal tidak terjangkau."""
+    """Jalankan pipeline lengkap dengan progress callback per stage.
+
+    Setiap stage neural (translate, summarize, NER) punya fallback chain. Model
+    berat tidak di-load secara blocking dari request pipeline; jika belum siap,
+    stage terkait langsung pakai fallback cepat.
+    """
 
     def stage(name: str) -> None:
         if on_stage:
@@ -64,6 +81,7 @@ def run_pipeline(raw_text: str, on_stage: Optional[ProgressCallback] = None) -> 
     dialect, dialect_conf = detect_dialect(raw_text)
 
     stage("translating")
+    # Skip translate kalau sudah Bahasa Indonesia — hemat 20-40 detik CPU
     translated = translate_to_indonesian(raw_text, dialect)
 
     stage("summarizing")
@@ -75,6 +93,7 @@ def run_pipeline(raw_text: str, on_stage: Optional[ProgressCallback] = None) -> 
     urgency = score_urgency(translated)
     keywords = extract_keywords(translated)
 
+    confidence = _compute_confidence(dialect_conf)
     stage("done")
 
     return NLPResult(
@@ -86,15 +105,27 @@ def run_pipeline(raw_text: str, on_stage: Optional[ProgressCallback] = None) -> 
         keywords=keywords,
         urgency_level=urgency,
         category_name=category,
-        confidence=_compute_confidence(dialect_conf),
+        confidence=confidence,
     )
 
 
 def _compute_confidence(dialect_conf: float) -> float:
-    """Heuristik confidence untuk hasil pipeline lokal (tanpa model neural)."""
+    """Heuristik confidence akhir berdasarkan model yang aktif.
+
+    Baseline 0.4 → ada keyword classifier + TextRank (selalu ada).
+    Naik per model neural yang aktif.
+    """
     score = 0.4
-    if loader.status()["dialect"]["loaded"]:
+    status = loader.status()
+    if status["dialect"]["loaded"]:
         score += 0.15 * min(dialect_conf, 1.0)
+    selected_summary = config.SUMMARIZER_MODEL
+    if selected_summary in status and status[selected_summary]["loaded"]:
+        score += 0.20
+    if status["nllb"]["loaded"]:
+        score += 0.10
+    if status["ner"]["loaded"]:
+        score += 0.15
     return round(min(score, 1.0), 3)
 
 
@@ -107,7 +138,7 @@ def detect_dialect(text: str) -> tuple[str, float]:
     if len(cleaned) < 10:
         return "xx", 0.0
 
-    clf = loader.get()
+    clf = loader.get(ModelKind.DIALECT)
     if clf is not None:
         try:
             probs = clf.predict_proba([cleaned])[0]
@@ -121,6 +152,7 @@ def detect_dialect(text: str) -> tuple[str, float]:
         except Exception as e:
             logger.warning("[nlp] dialect predict failed: %s", e)
 
+    # Fallback ke langdetect
     try:
         from langdetect import detect, DetectorFactory
         DetectorFactory.seed = 42
@@ -131,17 +163,78 @@ def detect_dialect(text: str) -> tuple[str, float]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 2: Translate ke Bahasa Indonesia (deep_translator / googletrans)
+# Stage 2: Translate ke Bahasa Indonesia
 # ─────────────────────────────────────────────────────────────────────────────
 def translate_to_indonesian(text: str, dialect: str) -> str:
-    """Terjemahkan ke Bahasa Indonesia lewat layanan eksternal (bukan model lokal)."""
+    """Terjemahkan ke Bahasa Indonesia dengan fallback chain:
+        1. NLLB lokal (kalau dialek ada di Flores-200)
+        2. deep_translator (Google Translate)
+        3. googletrans (lib lawas)
+        4. raw text (skip translate)
+    """
     if dialect in ("id", "xx"):
         return text
+
+    # Stage 2.1 — NLLB local
+    nllb_code = config.DIALECT_TO_NLLB.get(dialect)
+    nllb_model = loader.get(ModelKind.NLLB) if nllb_code and is_enabled() else None
+    nllb_tok = loader.get_tokenizer(ModelKind.NLLB) if nllb_code and is_enabled() else None
+    if nllb_model is not None and nllb_tok is not None and nllb_code is not None:
+        try:
+            translated = _translate_nllb(text, nllb_code, nllb_tok, nllb_model)
+            if _is_translation_usable(text, translated, dialect):
+                return translated
+            logger.info("[nlp] NLLB output terlihat belum terjemah penuh untuk %s", dialect)
+        except Exception as e:
+            logger.warning("[nlp] NLLB translate failed: %s", e)
+
     if not config.ALLOW_EXTERNAL_TRANSLATION:
         return text
 
+    # Stage 2.2 — deep_translator
     translated = _translate_external(text, dialect)
-    return translated or text
+    if translated:
+        return translated
+
+    # Stage 2.4 — return raw
+    return text
+
+
+def _translate_nllb(text: str, src_lang: str, tok, model) -> str:
+    chunks = _split_translation_chunks(text, config.TRANSLATION_CHUNK_CHARS)
+    translated_chunks = [
+        _translate_nllb_chunk(chunk, src_lang, tok, model)
+        for chunk in chunks
+    ]
+    return _join_translated_chunks(translated_chunks)
+
+
+def _translate_nllb_chunk(text: str, src_lang: str, tok, model) -> str:
+    """Inference NLLB dengan source language code Flores-200."""
+    import torch
+
+    tok.src_lang = src_lang
+    enc = tok(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        max_length=config.NLLB_MAX_INPUT_TOKENS,
+    )
+    target_token = tok.convert_tokens_to_ids(config.NLLB_TARGET_INDONESIAN)
+    input_tokens = int(enc["input_ids"].shape[1])
+    max_new_tokens = min(
+        max(config.NLLB_MAX_NEW_TOKENS, int(input_tokens * 1.4)),
+        256,
+    )
+    with torch.no_grad():
+        out = model.generate(
+            **enc,
+            forced_bos_token_id=target_token,
+            max_new_tokens=max_new_tokens,
+            num_beams=1,          # greedy — lebih cepat 3-5x untuk teks pendek
+            early_stopping=False, # tidak perlu dengan num_beams=1
+        )
+    return tok.batch_decode(out, skip_special_tokens=True)[0]
 
 
 def _translate_external(text: str, dialect: str) -> str:
@@ -165,7 +258,12 @@ def _translate_external(text: str, dialect: str) -> str:
                 if _is_translation_usable(text, translated, dialect):
                     return translated
             except Exception as e:
-                logger.info("[nlp] deep_translator failed untuk %s via %s (%s)", dialect, source, e)
+                logger.info(
+                    "[nlp] deep_translator failed untuk %s via %s (%s)",
+                    dialect,
+                    source,
+                    e,
+                )
     except Exception as e:
         logger.info("[nlp] deep_translator unavailable (%s); coba googletrans", e)
 
@@ -282,13 +380,137 @@ def _normalize_text(text: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 3: Summarize (TextRank)
+# Stage 3: Summarize
 # ─────────────────────────────────────────────────────────────────────────────
 def summarize(text: str) -> str:
-    """Ringkas dengan TextRank; fallback dua kalimat pertama."""
-    if len(text.split()) < config.MIN_WORDS_TEXTRANK:
+    """Ringkas dengan fallback chain:
+        1. SUMMARIZER_MODEL (mt5 / indot5 / textrank / ner)
+        2. SUMMARIZER_FALLBACKS (default: ner, textrank, first_sentences)
+        3. 2 kalimat pertama
+    """
+    n_words = len(text.split())
+    if n_words < config.MIN_WORDS_NEURAL:
+        # Teks pendek — pakai 2 kalimat pertama
         return _summarize_first_sentences(text)
+
+    if not is_enabled():
+        return _summarize_without_neural(text)
+
+    summary = _try_summarizer(config.SUMMARIZER_MODEL, text)
+    if summary:
+        return summary
+
+    for fallback_name in config.SUMMARIZER_FALLBACKS:
+        if fallback_name == config.SUMMARIZER_MODEL:
+            continue
+        summary = _try_summarizer(fallback_name, text)
+        if summary:
+            return summary
+
+    return _summarize_first_sentences(text)
+
+
+def _summarize_without_neural(text: str) -> str:
+    """Fallback ringkas saat NLP_ENABLED=false tanpa import torch/model berat."""
+    for fallback_name in config.SUMMARIZER_FALLBACKS:
+        if fallback_name in ("mt5", "indot5"):
+            continue
+        summary = _try_summarizer(fallback_name, text)
+        if summary:
+            return summary
+
     return _summarize_textrank(text) or _summarize_first_sentences(text)
+
+
+def _try_summarizer(name: str, text: str) -> str:
+    """Coba satu summarizer. Return string kosong kalau belum siap/gagal."""
+    name = (name or "").strip().lower()
+    if name in ("mt5", "indot5"):
+        try:
+            return _summarize_seq2seq(name, text)
+        except Exception as e:
+            logger.warning("[nlp] %s summarize failed: %s", name, e)
+            return ""
+    if name == "ner":
+        return _summarize_ner_extractive(text)
+    if name == "textrank":
+        return _summarize_textrank(text)
+    if name in ("first_sentences", "first_sentence", "sentences"):
+        return _summarize_first_sentences(text)
+    logger.warning("[nlp] unknown summarizer '%s'; skip", name)
+    return ""
+
+
+def _summarize_seq2seq(name: str, text: str) -> str:
+    """Inference summarizer abstractive dari model seq2seq yang sudah loaded."""
+    params = _seq2seq_summary_params(name)
+    model = loader.get_if_loaded(params["kind"])
+    tok = loader.get_tokenizer_if_loaded(params["kind"])
+    if model is None or tok is None:
+        return ""
+
+    import torch
+
+    prompt = params["prefix"] + text[: params["max_input"]]
+    enc = tok(prompt, return_tensors="pt", truncation=True, max_length=params["max_input"])
+    with torch.no_grad():
+        out = model.generate(
+            **enc,
+            max_new_tokens=params["max_output"],
+            num_beams=params["num_beams"],
+            no_repeat_ngram_size=3,
+            early_stopping=params["num_beams"] > 1,
+            length_penalty=1.0,
+        )
+    return _postprocess_summary(tok.decode(out[0], skip_special_tokens=True))
+
+
+def _seq2seq_summary_params(name: str) -> dict:
+    if name == "indot5":
+        return {
+            "kind": ModelKind.INDOT5,
+            "prefix": config.INDOT5_SUMMARY_PREFIX,
+            "max_input": config.INDOT5_MAX_INPUT,
+            "max_output": config.INDOT5_MAX_OUTPUT,
+            "num_beams": config.INDOT5_NUM_BEAMS,
+        }
+    return {
+        "kind": ModelKind.MT5,
+        "prefix": config.MT5_SUMMARY_PREFIX,
+        "max_input": config.MT5_MAX_INPUT,
+        "max_output": config.MT5_MAX_OUTPUT,
+        "num_beams": config.MT5_NUM_BEAMS,
+    }
+
+
+def _postprocess_summary(text: str) -> str:
+    """Bersihkan artifact seq2seq — CamelCase merge, lowercasing, capitalize first."""
+    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    text = text.lower()
+    if text:
+        text = text[0].upper() + text[1:]
+    text = re.sub(r"([.!?]\s)([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
+    return text
+
+
+def _summarize_ner_extractive(text: str) -> str:
+    """Extractive summary berbasis kepadatan entity per kalimat."""
+    ner = loader.get_if_loaded(ModelKind.NER)
+    if ner is None:
+        return ""
+    try:
+        sents = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()]
+        if not sents:
+            return ""
+        batch_ents = ner([s[:512] for s in sents])
+        scores = [len(entities) for entities in batch_ents]
+        top3 = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:3]
+        summary = " ".join(sents[i] for i in sorted(top3))
+        return " ".join(summary.split()[:80])
+    except Exception as e:
+        logger.warning("[nlp] NER extractive summarize failed: %s", e)
+        return ""
 
 
 def _summarize_textrank(text: str) -> str:
@@ -319,10 +541,36 @@ def _summarize_first_sentences(text: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 4: NER (regex)
+# Stage 4: NER
 # ─────────────────────────────────────────────────────────────────────────────
 def extract_entities(text: str) -> list:
-    """Extract named entities lewat regex pattern matching (LOC/ORG/PER)."""
+    """Extract named entities dengan fallback chain:
+        1. Cahya BERT NER (jika loaded)
+        2. Regex pattern matching (LOC/ORG/PER)
+    """
+    ner = loader.get_if_loaded(ModelKind.NER)
+    if ner is not None:
+        try:
+            raw = ner(text[:512])
+            seen = set()
+            entities = []
+            for e in raw:
+                word = str(e.get("word", "")).strip()
+                label = str(e.get("entity_group", "MISC"))
+                score = float(e.get("score", 0.0))
+                key = (word.lower(), label)
+                if score > 0.6 and len(word) > 1 and key not in seen:
+                    seen.add(key)
+                    entities.append({"text": word, "label": label, "score": round(score, 3)})
+            return entities
+        except Exception as e:
+            logger.warning("[nlp] NER failed: %s", e)
+
+    return _extract_entities_regex(text)
+
+
+def _extract_entities_regex(text: str) -> list:
+    """Fallback NER — regex pattern matching untuk LOC/ORG/PER nusantara."""
     entities = []
     patterns = {
         "LOC": [
@@ -351,7 +599,7 @@ def extract_entities(text: str) -> list:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 5: Category (keyword matching)
+# Stage 5: Category (keyword matching, tidak butuh model)
 # ─────────────────────────────────────────────────────────────────────────────
 def classify_category(text: str) -> str:
     """Klasifikasi kategori 8 kelas berdasar keyword."""
@@ -393,6 +641,14 @@ def extract_keywords(text: str, top_n: int = 5) -> list:
         if w not in config.STOPWORDS_ID:
             freq[w] = freq.get(w, 0) + 1
     return sorted(freq.keys(), key=lambda w: (-freq[w], -len(w)))[:top_n]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Compatibility shim — module-level fns yang sebelumnya di-export
+# ─────────────────────────────────────────────────────────────────────────────
+def load_models() -> None:
+    """Backward compat — sekarang delegasi ke loader.start_warmup()."""
+    loader.start_warmup()
 
 
 def dialect_name(code: str) -> str:

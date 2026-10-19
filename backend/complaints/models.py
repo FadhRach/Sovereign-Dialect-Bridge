@@ -136,16 +136,6 @@ class Notification(models.Model):
         return f"Notification #{self.id} → {self.user_id}"
 
 
-class SupabaseAlive(models.Model):
-    """Satu baris yang di-upsert tiap hari lewat cron supaya Supabase free tier
-    tidak auto-pause karena dianggap tidak ada aktivitas."""
-
-    pinged_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"Keepalive terakhir: {self.pinged_at}"
-
-
 class SystemSetting(models.Model):
     """Runtime setting non-secret yang boleh diubah admin dari dashboard."""
 

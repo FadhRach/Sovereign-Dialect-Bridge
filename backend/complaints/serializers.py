@@ -142,10 +142,37 @@ class AdminSettingUpdateSerializer(serializers.Serializer):
 
 
 ADMIN_SETTING_DEFINITIONS = {
+    "NLP_ENABLED": {
+        "type": "boolean",
+        "default": "false",
+        "label": "NLP aktif",
+        "description": "Aktifkan model NLP berat. Jika false, pipeline memakai fallback ringan.",
+    },
+    "SUMMARIZER_MODEL": {
+        "type": "choice",
+        "default": "textrank",
+        "choices": ["mt5", "indot5", "textrank", "ner", "first_sentences"],
+        "label": "Model ringkasan utama",
+        "description": "Model utama untuk membuat ringkasan aduan.",
+    },
+    "SUMMARIZER_FALLBACKS": {
+        "type": "csv",
+        "default": "ner,textrank,first_sentences",
+        "choices": ["mt5", "indot5", "textrank", "ner", "first_sentences"],
+        "label": "Fallback ringkasan",
+        "description": "Urutan fallback saat model utama gagal atau belum siap.",
+    },
+    "WARMUP_SUMMARIZERS": {
+        "type": "csv",
+        "default": "",
+        "choices": ["mt5", "indot5"],
+        "label": "Warmup summarizer",
+        "description": "Model neural yang dicoba diload saat startup jika NLP aktif.",
+    },
     "ALLOW_EXTERNAL_TRANSLATION": {
         "type": "boolean",
         "default": "true",
         "label": "Fallback translasi eksternal",
-        "description": "Izinkan pipeline lokal (fallback) menerjemahkan lewat deep_translator/googletrans saat Modal tidak terjangkau.",
+        "description": "Izinkan fallback deep_translator/googletrans saat NLLB tidak cukup.",
     },
 }

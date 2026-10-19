@@ -3,9 +3,8 @@
 Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung **12 dialek bahasa daerah**. Warga submit aduan dalam bahasa daerahnya → AI auto-detect dialek, terjemahkan ke Bahasa Indonesia, ringkas, ekstrak entitas, klasifikasi kategori, & skor urgensi — semua di background thread agar UX tetap cepat. Admin pemerintah review & tindak lanjut via dashboard terpisah.
 
 ## Link Deployed :
-- Frontend    : https://sovereign-dialect-bridge.vercel.app/
-- Backend     : (Vercel — lihat backend/README.md untuk setup)
-- NLP service : (Modal — lihat nlp-service/README.md untuk setup)
+- Frontend  : https://sovereign-dialect-bridge.vercel.app/
+- Backend   : https://oinovenv-sovereign-dialect-bridge-api.hf.space/dashboard/
 
 ## Contributors
 
@@ -24,17 +23,15 @@ Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung **12 
 
 ## Tech Stack
 
-| Layer       | Teknologi                                            | Deploy              |
-|-------------|------------------------------------------------------|---------------------|
-| Backend     | Django 4.2 + DRF + SimpleJWT (fallback NLP ringan)   | Vercel               |
-| NLP service | NLLB-200 + mT5/IndoT5 NusaSum + IndoBERT NER         | Modal                |
-| Frontend    | Next.js 14 (App Router) + TypeScript + Tailwind + Framer Motion | Vercel              |
-| Database    | PostgreSQL (Supabase, Session Pooler)                | Supabase            |
-| Storage     | Cloudinary (opsional, foto aduan)                    | Cloudinary          |
-| Map         | Leaflet.js + leaflet.markercluster + OpenStreetMap   | —                   |
-| Auth        | JWT (1h access / 7d refresh, rotation + blacklist) + Google Sign-In | — |
-
-Backend dan layanan NLP terpisah secara sengaja: Vercel serverless tidak muat model neural (~3.8GB, butuh ~4GB RAM), jadi translate/summarize/NER dijalankan di Modal dan dipicu lewat trigger + callback HTTP. Backend punya fallback lokal (deep_translator/TextRank/regex) kalau Modal tidak terjangkau — lihat `backend/README.md` §3.
+| Layer    | Teknologi                                            | Deploy              |
+|----------|------------------------------------------------------|---------------------|
+| Backend  | Django 4.2 + DRF + SimpleJWT                         | Hugging Face Spaces |
+| Frontend | Next.js 14 (App Router) + TypeScript + Tailwind + Framer Motion | Vercel              |
+| Database | PostgreSQL (Supabase, Session Pooler)                | Supabase            |
+| Storage  | Cloudinary (opsional, foto aduan)                    | Cloudinary          |
+| NLP      | NLLB-200 + mT5/IndoT5 NusaSum + IndoBERT NER + langdetect | HF Hub (auto-pull) |
+| Map      | Leaflet.js + leaflet.markercluster + OpenStreetMap   | —                   |
+| Auth     | JWT (1h access / 7d refresh, rotation + blacklist) + Google Sign-In | — |
 
 
 ## Halaman
@@ -59,19 +56,15 @@ Backend dan layanan NLP terpisah secara sengaja: Vercel serverless tidak muat mo
 
 ```
 Sovereign-Dialect-Bridge/
-├── backend/                       Django REST API (Vercel serverless)
+├── backend/                       Django REST API (Docker → HF Spaces port 7860)
 │   ├── accounts/                  Auth: CustomUser, JWT, Google OAuth, password reset
 │   ├── complaints/                Complaint CRUD, admin ops, dashboard stats, map, notifications, export
-│   ├── nlp/                       Pipeline lokal (fallback): dialect detector, deep_translator, TextRank, regex NER
-│   ├── dashboard/                 Internal dashboard (test pipeline lokal, status dialect + Modal reachability)
+│   ├── nlp/                       NLP pipeline (NLLB / mT5 / IndoT5 / IndoBERT NER + graceful fallback)
+│   ├── dashboard/                 Internal dashboard (model status, runtime logs)
 │   ├── config/                    Django settings, root URLs, WSGI
-│   ├── scripts/                   upload_mt5_to_hf.py, upload_dialect_to_hf.py (upload model ke HF Hub)
-│   ├── api/index.py               Entrypoint WSGI untuk Vercel Python runtime
-│   ├── vercel.json                Build command, rewrite, cron keepalive Supabase
-│   └── requirements.txt           Python deps (ringan — tanpa torch/transformers)
-│
-├── nlp-service/                   Modal App — NLLB/mT5/IndoT5/NER (torch, dipisah dari backend)
-│   └── app.py
+│   ├── scripts/                   upload_mt5_to_hf.py, upload_dialect_to_hf.py
+│   ├── Dockerfile                 Image untuk HF Spaces (port 7860)
+│   └── requirements.txt           Python deps
 │
 ├── frontend/                      Next.js 14 (App Router) + Tailwind + Framer Motion
 │   ├── public/
@@ -124,9 +117,8 @@ npm run dev                                         # http://localhost:3000
 
 ## Deploy Production
 
-- **Backend** → Vercel (project terpisah, root directory `backend/`). Lihat `backend/README.md` untuk step-by-step.
-- **NLP service** → Modal (`nlp-service/app.py`). Deploy duluan sebelum backend — backend butuh URL Modal saat runtime. Lihat `nlp-service/README.md`.
-- **Frontend** → Vercel (project terpisah, root directory `frontend/`). Set `NEXT_PUBLIC_API_URL` ke domain backend Vercel.
-- **Database** → Supabase via **Session Pooler URI**. Cron `GET /api/system/keepalive/` (dijadwalkan lewat Vercel Cron) mencegah auto-pause karena inaktivitas.
+- **Backend** → Hugging Face Spaces (Docker SDK, port `7860`). Repo HF Space berisi konten folder `backend/` saja.
+- **Frontend** → Vercel. Root directory `frontend/`. Set `NEXT_PUBLIC_API_URL` ke domain HF Space.
+- **Database** → Supabase via **Session Pooler URI**.
 
 Made with care by Group 7

@@ -1,5 +1,6 @@
 import datetime
 import os
+import threading
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -12,9 +13,7 @@ from django.utils import timezone
 
 from django.db import models
 from accounts.permissions import IsAdminUser
-from nlp.modal_client import trigger_modal_processing
-from nlp.pipeline import detect_dialect
-from .models import Complaint, Category, AdminNote, StatusHistory, Notification, SupabaseAlive, SystemSetting
+from .models import Complaint, Category, AdminNote, StatusHistory, Notification, SystemSetting
 from .serializers import (
     ADMIN_SETTING_DEFINITIONS,
     AdminSettingUpdateSerializer,
@@ -43,7 +42,7 @@ def error_response(message="", errors=None, status_code=status.HTTP_400_BAD_REQU
 class ComplaintListCreateView(APIView):
     """
     GET  → list aduan (user: milik sendiri, admin: semua)
-    POST → submit aduan baru, trigger NLP ke Modal (fallback lokal kalau gagal)
+    POST → submit aduan baru, NLP jalan di background
 
     Catatan: GET dibatasi hard-cap MAX_LIST_SIZE untuk keamanan production.
     Frontend Saat ini belum paginasi — cap mencegah timeout saat data besar.
@@ -61,78 +60,12 @@ class ComplaintListCreateView(APIView):
         if not serializer.is_valid():
             return error_response("Gagal submit aduan.", errors=serializer.errors)
         complaint = serializer.save(user=request.user, processing_stage="queued")
-
-        # Dialect detection ringan (joblib, tanpa torch) dijalankan di sini supaya
-        # Modal tahu bahasa sumber sebelum translate. Kalau trigger Modal gagal,
-        # pipeline lokal lengkap (fallback) yang mengambil alih.
-        dialect, _ = detect_dialect(complaint.original_text)
-        Complaint.objects.filter(pk=complaint.id).update(detected_dialect=dialect)
-
-        triggered = trigger_modal_processing(complaint.id, complaint.original_text, dialect)
-        if not triggered:
-            _run_nlp_pipeline(complaint.id)
-        complaint.refresh_from_db()
-
+        threading.Thread(target=_run_nlp_pipeline, args=(complaint.id,), daemon=True).start()
         return success_response(
             data=ComplaintDetailSerializer(complaint).data,
             message="Aduan berhasil dikirim. Sedang diproses...",
             status_code=status.HTTP_201_CREATED,
         )
-
-
-class NLPCallbackView(APIView):
-    """Terima hasil inference neural dari layanan Modal (bukan dari user).
-
-    Modal sudah menjalankan translate + summarize + extract entities; sisanya
-    (classify_category, score_urgency, extract_keywords) ringan dan dijalankan
-    di sini supaya tidak perlu ada logic itu di Modal.
-    """
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        if request.headers.get("Authorization") != f"Bearer {settings.MODAL_SHARED_SECRET}":
-            return error_response("Unauthorized.", status_code=status.HTTP_401_UNAUTHORIZED)
-
-        complaint_id = request.data.get("complaint_id")
-        translated_text = request.data.get("translated_text", "")
-        summary = request.data.get("summary", "")
-        named_entities = request.data.get("named_entities", [])
-
-        try:
-            complaint = Complaint.objects.get(pk=complaint_id)
-        except Complaint.DoesNotExist:
-            return error_response("Aduan tidak ditemukan.", status_code=status.HTTP_404_NOT_FOUND)
-
-        from nlp.pipeline import classify_category, extract_keywords, score_urgency
-
-        category_name = classify_category(translated_text)
-        category, _ = Category.objects.get_or_create(name=category_name)
-
-        complaint.translated_text = translated_text
-        complaint.summary = summary
-        complaint.named_entities = named_entities
-        complaint.category = category
-        complaint.urgency_level = score_urgency(translated_text)
-        complaint.keywords = extract_keywords(translated_text)
-        complaint.nlp_confidence = 0.85  # diproses lewat model neural di Modal
-        complaint.processing_stage = "done"
-        complaint.processing_error = None
-        complaint.save()
-
-        return success_response(message="Hasil NLP tersimpan.")
-
-
-class SupabaseKeepAliveView(APIView):
-    """Dipanggil Vercel Cron sekali sehari supaya Supabase tidak auto-pause
-    karena dianggap tidak ada aktivitas database."""
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        if request.headers.get("Authorization") != f"Bearer {settings.CRON_SECRET}":
-            return error_response("Unauthorized.", status_code=status.HTTP_401_UNAUTHORIZED)
-
-        SupabaseAlive.objects.update_or_create(pk=1)
-        return success_response(message="Keepalive tercatat.")
 
 
 class ComplaintPhotoUploadView(APIView):
@@ -646,11 +579,20 @@ def _serialize_admin_setting(setting: SystemSetting) -> dict:
 
 
 def _apply_runtime_setting_to_process(key: str, value: str) -> None:
-    """Terapkan setting ke process saat ini supaya pipeline lokal berikutnya ikut berubah."""
+    """Terapkan setting ke process saat ini supaya pipeline berikutnya ikut berubah."""
     os.environ[key] = value
-    from nlp import config as nlp_config
+    try:
+        from nlp import config as nlp_config
+    except Exception:
+        return
 
-    setattr(nlp_config, key, value.lower() == "true")
+    if key in ("NLP_ENABLED", "ALLOW_EXTERNAL_TRANSLATION"):
+        setattr(nlp_config, key, value.lower() == "true")
+        return
+    if key in ("SUMMARIZER_FALLBACKS", "WARMUP_SUMMARIZERS"):
+        setattr(nlp_config, key, [item.strip() for item in value.split(",") if item.strip()])
+        return
+    setattr(nlp_config, key, value)
 
 
 def _apply_stored_runtime_settings() -> None:
@@ -825,16 +767,23 @@ def _shift_month(date_value: datetime.date, offset: int) -> datetime.date:
 
 
 def _run_nlp_pipeline(complaint_id):
-    """Jalankan pipeline NLP lokal (fallback) dan simpan hasilnya.
+    """Jalankan NLP pipeline dan update complaint. Dipanggil di background thread.
 
-    Dipanggil síncron dari ComplaintListCreateView.post saat trigger ke Modal
-    gagal — pipeline lokal (TextRank/regex/deep_translator) tidak pernah
-    crash, jadi aduan tetap punya hasil walau kualitasnya di bawah model neural.
+    Setiap pergantian tahap (detecting → translating → summarizing → extracting → done)
+    di-flush ke DB lewat callback agar frontend polling bisa menampilkan progres.
+    Timeout 120 detik — kalau lebih (misal model stuck di CPU), set ke "failed"
+    supaya frontend tidak polling selamanya.
     """
+    import signal
 
     def update_stage(stage_name: str) -> None:
         Complaint.objects.filter(pk=complaint_id).update(processing_stage=stage_name)
 
+    def _timeout_handler(signum, frame):
+        raise TimeoutError("NLP pipeline timeout setelah 120 detik")
+
+    # signal.alarm hanya bekerja di main thread; di background thread pakai
+    # try/except biasa — model punya internal early stopping & max_new_tokens
     try:
         _apply_stored_runtime_settings()
         from nlp import pipeline as nlp_pipeline

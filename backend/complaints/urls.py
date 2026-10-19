@@ -15,6 +15,4 @@ urlpatterns = [
     path("notifications/", views.NotificationListView.as_view()),
     path("notifications/read/", views.NotificationReadView.as_view()),  # read all
     path("notifications/<int:pk>/read/", views.NotificationReadView.as_view()),
-    path("internal/nlp-callback/", views.NLPCallbackView.as_view()),
-    path("system/keepalive/", views.SupabaseKeepAliveView.as_view()),
 ]

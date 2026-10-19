@@ -1,25 +1,22 @@
 # Backend — Sovereign Dialect-Bridge
 
-Django REST API untuk platform pengaduan publik multidialek Indonesia, di-deploy sebagai serverless function di Vercel.
-
-Model neural (translate/summarize/NER) tidak jalan di proses ini — dipindah ke layanan Modal terpisah (`../nlp-service/`) karena Vercel serverless tidak muat torch/transformers (~3.8GB model, butuh persistent disk & background thread yang tidak tersedia di serverless). Backend memicu Modal lewat trigger HTTP, hasilnya diterima balik lewat callback:
+Django REST API + NLP pipeline lokal untuk platform pengaduan publik multidialek Indonesia.
 
 ```
-POST /api/complaints/ (submit aduan)
+input pengaduan
    │
-   ▼ detect_dialect (lokal)   ← joblib LogReg (4.7 MB) → langdetect → "xx"
-   ▼ trigger Modal /start     ← non-blocking, Modal proses translate+summarize+NER di background
-   │                            (gagal/timeout → fallback lokal langsung: deep_translator → TextRank → regex)
-   ▼ ... beberapa detik kemudian ...
-   ▼ Modal callback ke /api/internal/nlp-callback/
-   ▼ classify_category (lokal, keyword matching)
-   ▼ score_urgency (lokal, weighted keyword scoring)
-   ▼ extract_keywords (lokal, frekuensi + stopword filter)
+   ▼ detect_dialect         ← joblib LogReg (4.7 MB) → langdetect → "xx"
+   ▼ translate_to_indonesian ← NLLB-200-distilled (1.2 GB) → deep_translator → raw text
+   ▼ summarize              ← configurable: mT5 / IndoT5 → NER/TextRank → 2 kalimat
+   ▼ extract_entities       ← Cahya BERT NER (440 MB) → regex
+   ▼ classify_category      ← keyword matching (no model)
+   ▼ score_urgency          ← weighted keyword scoring (no model)
+   ▼ extract_keywords       ← frekuensi + stopword filter
    ▼
-Complaint tersimpan: {dialect, translated, summary, entities, category, urgency, keywords}
+output: {dialect, translated, summary, entities, category, urgency, keywords}
 ```
 
-Kalau Modal tidak terjangkau, pipeline lokal (fallback) langsung mengambil alih secara síncron — aduan tetap selesai, hanya kualitas hasil sedikit menurun.
+Setiap stage punya **fallback chain** — pipeline tidak akan crash kalau model neural gagal load.
 
 ---
 
@@ -28,8 +25,10 @@ Kalau Modal tidak terjangkau, pipeline lokal (fallback) langsung mengambil alih 
 | Tool | Versi Minimum |
 |------|--------------|
 | Python | 3.11+ |
+| RAM (lokal, NLP_ENABLED=true) | 8 GB minimum, 12 GB rekomendasi |
+| Disk (model cache) | ~5 GB |
 
-Database sudah di-host di Supabase — tidak perlu install Postgres lokal. Model neural jalan di Modal (`../nlp-service/`), bukan di proses backend ini — tidak perlu RAM/disk besar untuk develop backend secara lokal.
+Database sudah di-host di Supabase — tidak perlu install Postgres lokal.
 
 ---
 
@@ -45,6 +44,8 @@ source venv/bin/activate    # macOS/Linux
 pip install -r requirements.txt
 ```
 
+> Install pertama download ~2 GB (torch CPU + transformers + tokenizers). 5-10 menit.
+
 ### 2.2 Konfigurasi `.env`
 
 ```bash
@@ -57,9 +58,13 @@ Edit `.env`:
 |----------|------|
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
 | `DATABASE_URL` | Supabase Dashboard → Database → Session Pooler URI |
-| `MODAL_START_URL` / `MODAL_HEALTH_URL` / `MODAL_SHARED_SECRET` | Isi setelah deploy `../nlp-service/` (lihat README di sana). Kosongkan untuk develop dengan fallback lokal saja |
-| `NLP_CALLBACK_URL` | URL publik endpoint callback backend ini — isi setelah backend live |
-| `CRON_SECRET` | Untuk endpoint keepalive Supabase, `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `NLP_ENABLED` | `false` untuk dev cepat (fallback mode), `true` untuk full pipeline |
+| `MT5_MODEL_PATH` | (opsional) Path lokal atau HF Hub repo. Default: `backend/models/mt5base/` kalau ada |
+| `INDOT5_MODEL_PATH` | (opsional) Path lokal atau HF Hub repo. Default: `OinoVenv/sovereign-indot5-nusasum` |
+| `SUMMARIZER_MODEL` | Model utama: `mt5`, `indot5`, `textrank`, `ner`, atau `first_sentences` |
+| `SUMMARIZER_FALLBACKS` | Urutan fallback, default `ner,textrank,first_sentences` |
+| `WARMUP_SUMMARIZERS` | Model abstractive yang di-load untuk comparison, default `mt5,indot5` |
+| `HF_TOKEN` | Opsional untuk model download; wajib jika dashboard backend ingin stream HF runtime/build logs |
 
 ### 2.3 Migrate + runserver
 
@@ -68,57 +73,121 @@ python manage.py migrate
 python manage.py runserver   # → http://localhost:8000
 ```
 
-Kalau `MODAL_START_URL` kosong, submit aduan otomatis pakai pipeline lokal (fallback) — tidak perlu Modal untuk develop fitur non-NLP.
+**Boot time:**
+- `NLP_ENABLED=false` (default): **<1 detik**, semua stage pakai fallback (akurasi sedikit menurun)
+- `NLP_ENABLED=true`: **<1 detik** untuk listen port, model load di background thread. Jika request datang sebelum NLLB/mT5/NER siap, pipeline langsung pakai fallback cepat agar submit aduan tidak menggantung.
 
 ---
 
-## 3. Arsitektur NLP
+## 3. Arsitektur NLP Pipeline
 
 ### 3.1 Struktur folder
 
 ```
 backend/nlp/
 ├── __init__.py
-├── config.py        ← Konstanta: dialek mapping, stopword, keyword urgency/kategori
-├── models.py        ← Lazy loader dialect detector (satu-satunya model lokal)
-├── pipeline.py       ← Pipeline lokal (fallback): translate/summarize/NER tanpa torch
-└── modal_client.py   ← Trigger HTTP ke layanan Modal (../../nlp-service/)
+├── config.py     ← Konstanta: dialek mapping, stopword, keyword urgency/kategori
+├── models.py     ← Lazy loader (thread-safe, background warmup, fallback graceful)
+└── pipeline.py   ← Orchestrator: run_pipeline() + stage functions
 ```
 
-### 3.2 Trigger + callback ke Modal
+### 3.2 Lazy loading model
 
-Model neural (NLLB, mT5/IndoT5, IndoBERT NER) jalan di `../nlp-service/` (Modal App), bukan di proses ini — Vercel serverless tidak muat torch/transformers (~3.8GB, butuh persistent disk & background thread yang tidak tersedia di serverless).
+`nlp.models.loader` adalah **singleton** dengan strategi:
 
-Alur submit aduan (`ComplaintListCreateView.post`, lihat `complaints/views.py`):
-1. Deteksi dialek lokal (`detect_dialect`, joblib — cepat, tidak butuh Modal).
-2. `nlp.modal_client.trigger_modal_processing(...)` — POST ke Modal `/start`, non-blocking di sisi Modal (Modal langsung `spawn()` dan balas cepat).
-3. Kalau trigger gagal (network error/timeout) → pipeline lokal (`run_pipeline()`) langsung jalan síncron sebagai fallback, aduan tetap selesai.
-4. Kalau trigger berhasil → Modal proses translate+summarize+NER di background, lalu `POST` hasilnya ke `NLPCallbackView` (`/api/internal/nlp-callback/`). Callback ini yang menjalankan `classify_category`/`score_urgency`/`extract_keywords` dan menyimpan hasil akhir.
+1. **`loader.start_warmup()`** dipanggil dari `complaints/apps.py.ready()` saat Django boot.
+   Spawn 1 background thread → load model satu per satu.
+2. Pipeline utama memakai **`loader.get_if_loaded(...)`** untuk model berat.
+   - Kalau model sudah loaded → return instance, instant.
+   - Kalau belum (warmup belum sampai) → return `None` tanpa blocking → pakai fallback.
+   - Kalau `NLP_ENABLED=false` → return `None` → pipeline auto-pakai fallback.
+3. Idempoten — `start_warmup()` aman dipanggil berkali-kali. Untuk HF Space jangan pakai gunicorn `--preload`; warmup thread harus jalan di worker process.
 
-Kedua endpoint (trigger dari Django, callback dari Modal) diverifikasi pakai `MODAL_SHARED_SECRET` yang sama di kedua arah.
+### 3.3 Fallback chain per stage
 
-### 3.3 Fallback chain lokal (dipakai saat Modal tidak terjangkau)
+| Stage | Primary | Fallback 1 | Fallback 2 | Final |
+|-------|---------|------------|------------|-------|
+| Dialect | joblib LogReg (12 dialek) | langdetect | — | `"xx"` |
+| Translate | NLLB lokal (Flores-200) | deep_translator (opsional) | googletrans (opsional) | raw text |
+| Summarize | `SUMMARIZER_MODEL` (`mt5` / `indot5`) | NER extractive | TextRank | 2 kalimat pertama |
+| NER | Cahya BERT IndoBERT | regex (Jalan/Desa/Dinas/dll) | — | `[]` |
+| Category | keyword matching 8 kategori | — | — | `"Umum"` |
+| Urgency | weighted keyword scoring | — | — | `"low"` |
+| Keywords | frekuensi + stopword filter | — | — | — |
 
-| Stage | Lokal (fallback) |
-|-------|-------------------|
-| Dialect | joblib LogReg (12 dialek) → langdetect → `"xx"` (selalu lokal, bukan fallback Modal) |
-| Translate | deep_translator (Google Translate) → googletrans → raw text |
-| Summarize | TextRank (TF-IDF + PageRank) → 2 kalimat pertama |
-| NER | regex (Jalan/Desa/Dinas/dll) |
-| Category | keyword matching 8 kategori |
-| Urgency | weighted keyword scoring |
-| Keywords | frekuensi + stopword filter |
+Pipeline **TIDAK pernah crash**. Worst case: pakai fallback chain → confidence turun jadi 0.4.
 
-Pipeline lokal **tidak pernah crash** — worst case confidence turun ke ~0.4-0.55. Lihat `../nlp-service/README.md` untuk detail model neural (NLLB/mT5/IndoT5/NER) yang jadi jalur utama saat Modal reachable.
+### 3.4 Mapping dialek → NLLB Flores-200
+
+| Dialek lokal | NLLB code | Catatan |
+|--------------|-----------|---------|
+| id | ind_Latn | Bahasa Indonesia (target) |
+| jv | jav_Latn | Jawa |
+| su | sun_Latn | Sunda |
+| min | min_Latn | Minangkabau |
+| ace | ace_Latn | Aceh |
+| ban | ban_Latn | Bali |
+| bjn | bjn_Latn | Banjar |
+| bug | bug_Latn | Bugis |
+| mad | (NLLB miss) | fallback ke deep_translator |
+| nij | (NLLB miss) | fallback |
+| bbc | (NLLB miss) | fallback |
 
 ---
 
-## 4. Smoke Test
+## 4. Hosting Model untuk Production
 
-### 4.1 Pipeline lokal (tanpa Modal)
+mT5-base custom fine-tuned NusaSum **TIDAK boleh** di-commit ke git (2.2 GB).
+Strategi: upload ke **Hugging Face Hub** (gratis, unlimited public model repo).
+
+### 4.1 Upload mT5 ke HF Hub (sekali saja)
 
 ```bash
-python manage.py shell -c "
+# 1. Generate HF token: https://huggingface.co/settings/tokens (Write access)
+# 2. Login lokal
+hf auth login   # paste token
+
+# 3. Upload pakai script helper
+cd backend
+python scripts/upload_mt5_to_hf.py <hf-username> sovereign-mt5-nusasum
+# Estimasi: 5-15 menit (2.2 GB upload)
+```
+
+Selesai → model live di `https://huggingface.co/<username>/sovereign-mt5-nusasum`.
+
+### 4.2 Set HF Space pakai model dari Hub
+
+HF Space → Settings → Secrets → tambah:
+```
+MT5_MODEL_PATH = <username>/sovereign-mt5-nusasum
+INDOT5_MODEL_PATH = OinoVenv/sovereign-indot5-nusasum
+SUMMARIZER_MODEL = mt5
+SUMMARIZER_FALLBACKS = ner,textrank,first_sentences
+WARMUP_SUMMARIZERS = mt5,indot5
+NLP_ENABLED    = true
+```
+
+Saat runtime pertama, warmup thread auto-pull model dari HF Hub ke `/data/huggingface` (persistent cache). Build Docker hanya bake dependency dan model kecil yang aman; model besar tidak bisa "loaded" di build karena RAM runtime baru ada setelah container start.
+
+### 4.3 Model lain (auto dari HF Hub)
+
+| Model | HF Hub ID | Size | Override env var |
+|-------|-----------|------|------------------|
+| NLLB | `facebook/nllb-200-distilled-600M` | 1.2 GB | `NLLB_MODEL_ID` |
+| IndoT5 | `OinoVenv/sovereign-indot5-nusasum` | sesuai checkpoint | `INDOT5_MODEL_PATH` |
+| NER | `cahya/bert-base-indonesian-NER` | 440 MB | `NER_MODEL_ID` |
+| Dialect | (local file `models/dialect_detector/`) | 4.7 MB | (di-bundle) |
+
+Total disk cache di production: **~3.8 GB** di `/data/huggingface`. HF Space free tier 50 GB → ample.
+
+---
+
+## 5. Smoke Test NLP
+
+### 5.1 Fallback mode (cepat, tanpa torch)
+
+```bash
+NLP_ENABLED=false python manage.py shell -c "
 from nlp.pipeline import run_pipeline
 r = run_pipeline('Dalane rusak banget wis suwe ora dibenahi, tolong cepat diperbaiki sebelum ada korban')
 print('dialect:', r.dialect, '(', r.dialect_confidence, ')')
@@ -129,15 +198,26 @@ print('confidence:', r.confidence)
 "
 ```
 
-Expected: `urgency=critical`, `category=Infrastruktur`.
+Expected: `urgency=critical`, `category=Infrastruktur`. Summary fallback ke 2 kalimat pertama.
 
-### 4.2 Trigger Modal end-to-end
+### 5.2 Full pipeline mode (semua model neural)
 
-Set `MODAL_START_URL`/`MODAL_HEALTH_URL`/`MODAL_SHARED_SECRET`/`NLP_CALLBACK_URL` di `.env` (lihat `../nlp-service/README.md` untuk cara deploy Modal-nya), lalu submit aduan lewat `POST /api/complaints/` dan cek `processing_stage` berubah dari `queued` ke `done` setelah callback Modal masuk.
+```bash
+NLP_ENABLED=true python manage.py shell -c "
+from nlp.pipeline import run_pipeline
+from nlp.models import loader
+r = run_pipeline('Dalane ning omah rusak banget tolong cepat diperbaiki sebelum ada korban kecelakaan')
+print('translated:', r.translated_text[:120])
+print('summary:', r.summary[:120])
+print('Model status:', loader.status())
+"
+```
+
+Pertama kali jalan sebelum warmup selesai akan memakai fallback cepat. Setelah model status `loaded`, mT5 inference CPU biasanya ~5-15 detik untuk teks pendek.
 
 ---
 
-## 5. Perintah Umum
+## 6. Perintah Umum
 
 ```bash
 python manage.py createsuperuser   # akun admin untuk /admin/
@@ -148,25 +228,27 @@ pytest accounts/tests.py -v         # test spesifik
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Gejala | Sebab + Fix |
 |--------|-------------|
-| `migrate` gagal | Supabase pause? Cek dashboard, restore project. Kalau sering terjadi, pastikan cron keepalive (`/api/system/keepalive/`) aktif |
+| `migrate` gagal | Supabase pause? Cek dashboard, restore project |
 | `psycopg2` install gagal di macOS | `brew install libpq && pip install psycopg2-binary --no-cache` |
-| Aduan selalu pakai hasil fallback (bukan neural) | Cek `MODAL_START_URL`/`MODAL_SHARED_SECRET` terisi benar, dan `../nlp-service/` sudah di-deploy (`modal deploy app.py`) |
-| Callback Modal tidak pernah sampai | `NLP_CALLBACK_URL` harus URL publik yang bisa diakses dari luar (bukan `localhost` kecuali pakai tunnel seperti ngrok saat develop) |
-| `401 Unauthorized` di callback/keepalive | `MODAL_SHARED_SECRET` atau `CRON_SECRET` di backend tidak sama dengan yang dipakai pemanggil |
+| Boot lama walau `NLP_ENABLED=false` | `import torch` masih ke-trigger di file lain? Pastikan torch di-import lazy di `nlp/pipeline.py` |
+| OOM saat load mT5 di Mac 8 GB | Set `NLP_ENABLED=false` + tutup VSCode/Chrome. Mac 8 GB tidak cukup untuk full pipeline + dev tools |
+| HF Hub download lambat | Set `HF_TOKEN` env var (gratis, dari huggingface.co/settings/tokens) → rate limit naik |
+| `MT5_MODEL_PATH` salah | Cek `python -c "from nlp.config import MT5_MODEL_PATH; print(MT5_MODEL_PATH)"` |
+| Model status `failed: true` | Cek log di console — biasanya OOM / network / disk full. Pipeline tetap jalan pakai fallback |
 
 ---
 
-## 7. Deploy ke Vercel
+## 8. Deploy ke HF Spaces
 
-Ringkasan (detail lengkap di root `README.md` dan `../nlp-service/README.md`):
+Singkat:
+1. Upload mT5 ke HF Hub (§4.1)
+2. Buat HF Space (Docker SDK)
+3. Push isi folder `backend/` ke repo Space
+4. Set Secrets: `SECRET_KEY`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `NLP_ENABLED=true`, `MT5_MODEL_PATH=<username>/<repo>`
+5. **Enable persistent storage** (HF Space → Settings → Persistent storage) → model cache survive antar cold start
 
-1. Deploy `../nlp-service/` dulu (`modal deploy app.py`) — catat `MODAL_START_URL`/`MODAL_HEALTH_URL`.
-2. Buat project Vercel baru, root directory `backend/`.
-3. Set environment variables: `SECRET_KEY`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `MODAL_START_URL`, `MODAL_HEALTH_URL`, `MODAL_SHARED_SECRET`, `NLP_CALLBACK_URL`, `CRON_SECRET`, kredensial email/Cloudinary/Google yang sudah dipakai.
-4. Migrate database dari lokal: `DATABASE_URL=<supabase-url> python manage.py migrate`.
-5. Deploy (`vercel --prod` atau lewat Git integration). `vercel.json` sudah menyertakan `buildCommand` (collectstatic) dan cron harian untuk `/api/system/keepalive/`.
-6. Update `NLP_CALLBACK_URL` ke domain Vercel yang sebenarnya setelah deploy pertama, lalu redeploy.
+Runbook lengkap: [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).

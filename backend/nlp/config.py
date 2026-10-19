@@ -1,31 +1,116 @@
 """
-Konstanta untuk NLP pipeline lokal — mapping dialek, stopword, keyword urgency/kategori.
+Konstanta untuk NLP pipeline — mapping dialek, stopword, keyword urgency/kategori.
 
-Model neural (NLLB/mT5/IndoT5/NER) tidak lagi jalan di proses ini — lihat
-../../nlp-service/. File ini hanya menyimpan konfigurasi untuk stage ringan
-yang tetap jalan lokal: dialect detector, translate fallback, TextRank, regex
-NER, keyword classify/urgency.
+File ini SENGAJA tidak import torch/transformers. Boleh di-import dari mana saja
+(serializer, view) tanpa memicu load model.
 """
 
 from __future__ import annotations
 import os
 from pathlib import Path
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Path konfigurasi
+# ─────────────────────────────────────────────────────────────────────────────
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = BACKEND_ROOT / "models"
 
-# Dialect detector — priority: file lokal > HF Hub (env DIALECT_MODEL_HF) > gagal.
-DIALECT_MODEL_PATH = MODELS_DIR / "dialect_detector" / "dialect_detector.joblib"
+# ── Dialect detector path ────────────────────────────────────────────────────
+# Priority: env var DIALECT_MODEL_HF (HF Hub) > local file > None (skip)
+_DIALECT_LOCAL = MODELS_DIR / "dialect_detector" / "dialect_detector.joblib"
+DIALECT_MODEL_PATH = _DIALECT_LOCAL   # dipakai oleh models.py
+
+# Kalau di production dan ada env var, models.py akan pull dari HF Hub
 DIALECT_MODEL_HF = os.environ.get("DIALECT_MODEL_HF", "").strip()
 
-MIN_DIALECT_CONF = 0.35        # ambang minimum confidence dialect detector
-MIN_WORDS_TEXTRANK = 40        # di bawah ini summarize pakai 2 kalimat pertama langsung
-EXTERNAL_TRANSLATION_CHUNK_CHARS = int(os.environ.get("EXTERNAL_TRANSLATION_CHUNK_CHARS", "4000"))
+# ── mT5 path ─────────────────────────────────────────────────────────────────
+# Priority: env var MT5_MODEL_PATH (HF Hub repo id) > local folder > google/mt5-base
+def _resolve_mt5_path() -> str:
+    env = os.environ.get("MT5_MODEL_PATH", "").strip()
+    if env:
+        return env
+    local = MODELS_DIR / "mt5base"
+    if local.exists():
+        return str(local)
+    return "google/mt5-base"
+
+
+MT5_MODEL_PATH = _resolve_mt5_path()
+
+# ── IndoT5 path ──────────────────────────────────────────────────────────────
+# Priority: env var INDOT5_MODEL_PATH > local folder > HF Hub custom checkpoint.
+def _resolve_indot5_path() -> str:
+    env = os.environ.get("INDOT5_MODEL_PATH", "").strip()
+    if env:
+        return env
+    local = MODELS_DIR / "indot5_nusasum"
+    if local.exists():
+        return str(local)
+    return "OinoVenv/sovereign-indot5-nusasum"
+
+
+INDOT5_MODEL_PATH = _resolve_indot5_path()
+
+# Translator NLLB — dari HF Hub, di-cache otomatis ke HF_HOME.
+NLLB_MODEL_ID = os.environ.get("NLLB_MODEL_ID", "facebook/nllb-200-distilled-600M")
+
+# NER IndoBERT — Cahya.
+# Priority: env var > folder lokal hasil Docker build > HF Hub.
+def _resolve_ner_model() -> str:
+    env = os.environ.get("NER_MODEL_ID", "").strip()
+    if env:
+        return env
+    local = MODELS_DIR / "ner_cahya"
+    if local.exists():
+        return str(local)
+    return "cahya/bert-base-indonesian-NER"
+
+
+NER_MODEL_ID = _resolve_ner_model()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Inference hyperparameter
+# ─────────────────────────────────────────────────────────────────────────────
+MIN_DIALECT_CONF = 0.35       # ambang minimum confidence dialect detector
+MIN_WORDS_NEURAL = 40          # di bawah ini summarize pakai TextRank
+NLP_ENABLED = os.environ.get("NLP_ENABLED", "false").lower() in ("1", "true", "yes")
+DEFAULT_SUMMARIZER_MODEL = "mt5" if NLP_ENABLED else "textrank"
+DEFAULT_WARMUP_SUMMARIZERS = "mt5,indot5" if NLP_ENABLED else ""
+SUMMARIZER_MODEL = os.environ.get("SUMMARIZER_MODEL", DEFAULT_SUMMARIZER_MODEL).strip().lower()
+SUMMARIZER_FALLBACKS = [
+    item.strip().lower()
+    for item in os.environ.get("SUMMARIZER_FALLBACKS", "ner,textrank,first_sentences").split(",")
+    if item.strip()
+]
+WARMUP_SUMMARIZERS = [
+    item.strip().lower()
+    for item in os.environ.get("WARMUP_SUMMARIZERS", DEFAULT_WARMUP_SUMMARIZERS).split(",")
+    if item.strip()
+]
+MT5_MAX_INPUT = 512             # potong input agar inference CPU lebih cepat
+MT5_MAX_OUTPUT = 80             # ringkasan aduan tidak perlu panjang
+MT5_NUM_BEAMS = 1               # greedy decoding — 3-5x lebih cepat dari beam=2, kualitas cukup untuk aduan pendek
+MT5_SUMMARY_PREFIX = os.environ.get("MT5_SUMMARY_PREFIX", "ringkas: ")
+INDOT5_MAX_INPUT = int(os.environ.get("INDOT5_MAX_INPUT", "512"))
+INDOT5_MAX_OUTPUT = int(os.environ.get("INDOT5_MAX_OUTPUT", "80"))
+INDOT5_NUM_BEAMS = int(os.environ.get("INDOT5_NUM_BEAMS", "1"))
+INDOT5_SUMMARY_PREFIX = os.environ.get("INDOT5_SUMMARY_PREFIX", "ringkas: ")
+NLLB_MAX_NEW_TOKENS = 200       # teks aduan rata-rata 50-150 token, 200 cukup
+NLLB_MAX_INPUT_TOKENS = int(os.environ.get("NLLB_MAX_INPUT_TOKENS", "384"))
+TRANSLATION_CHUNK_CHARS = int(os.environ.get("TRANSLATION_CHUNK_CHARS", "420"))
+EXTERNAL_TRANSLATION_CHUNK_CHARS = int(
+    os.environ.get("EXTERNAL_TRANSLATION_CHUNK_CHARS", "4000")
+)
+PIPELINE_TIMEOUT_SEC = 60       # timeout per pipeline run — kalau lebih, pakai fallback
 ALLOW_EXTERNAL_TRANSLATION = os.environ.get("ALLOW_EXTERNAL_TRANSLATION", "true").lower() in (
     "1", "true", "yes"
 )
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Mapping dialek nama display
+# ─────────────────────────────────────────────────────────────────────────────
 DIALECT_NAMES: dict[str, str] = {
     "id":  "Bahasa Indonesia",
     "jv":  "Bahasa Jawa",
@@ -42,13 +127,42 @@ DIALECT_NAMES: dict[str, str] = {
     "xx":  "Tidak Terdeteksi",
 }
 
-# Mapping dialek -> kode Google Translate (dipakai deep_translator fallback).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mapping dialek -> kode NLLB (Flores-200).
+# Untuk dialek nusantara yang tidak ada di NLLB, fallback ke "auto" (deep_translator).
+# ─────────────────────────────────────────────────────────────────────────────
+DIALECT_TO_NLLB: dict[str, str] = {
+    "id":  "ind_Latn",  # Indonesian
+    "jv":  "jav_Latn",  # Javanese
+    "su":  "sun_Latn",  # Sundanese
+    "min": "min_Latn",  # Minangkabau
+    "ace": "ace_Latn",  # Aceh
+    "ban": "ban_Latn",  # Bali
+    "bjn": "bjn_Latn",  # Banjar
+    "bug": "bug_Latn",  # Bugis
+    "mad": None,         # Madura — tidak ada di NLLB, fallback
+    "nij": None,         # Ngaju Dayak — tidak ada di NLLB, fallback
+    "bbc": None,         # Batak Toba — tidak ada di NLLB, fallback
+    "en":  "eng_Latn",
+}
+
+NLLB_TARGET_INDONESIAN = "ind_Latn"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mapping dialek -> kode Google Translate (deep_translator fallback)
+# ─────────────────────────────────────────────────────────────────────────────
 DIALECT_TO_GOOGLE: dict[str, str] = {
     "jv": "jw", "su": "su", "min": "auto", "ace": "auto",
     "ban": "auto", "bjn": "auto", "bug": "auto", "mad": "auto",
     "nij": "auto", "bbc": "auto", "en": "en",
 }
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stopwords Bahasa Indonesia untuk keyword extraction
+# ─────────────────────────────────────────────────────────────────────────────
 STOPWORDS_ID: set[str] = {
     "yang", "dan", "di", "ke", "dari", "untuk", "dengan", "pada", "adalah",
     "ini", "itu", "tidak", "ada", "juga", "bisa", "akan", "sudah", "telah",
@@ -58,6 +172,10 @@ STOPWORDS_ID: set[str] = {
     "sangat", "sekali", "serta", "tersebut", "yaitu", "seperti",
 }
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Keyword untuk klasifikasi kategori (8 kategori final)
+# ─────────────────────────────────────────────────────────────────────────────
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "Infrastruktur": [
         "jalan", "jembatan", "drainase", "saluran", "trotoar",
@@ -89,7 +207,11 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     ],
 }
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Keyword scoring untuk urgency level
 # Skor lebih tinggi = lebih urgent. Total >= ambang -> level.
+# ─────────────────────────────────────────────────────────────────────────────
 URGENCY_KEYWORDS: dict[int, list[str]] = {
     100: [
         "kebakaran", "banjir besar", "longsor", "darurat", "nyawa",
@@ -112,5 +234,8 @@ URGENCY_KEYWORDS: dict[int, list[str]] = {
 URGENCY_THRESHOLDS = {"critical": 100, "high": 60, "medium": 30}  # else "low"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Util — get pretty dialect name
+# ─────────────────────────────────────────────────────────────────────────────
 def dialect_name(code: str) -> str:
     return DIALECT_NAMES.get(code, f"Dialek {code.upper()}")

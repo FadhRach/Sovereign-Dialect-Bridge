@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Settings, Save, Loader2, Cpu, CheckCircle2, AlertCircle, Clock,
@@ -43,6 +43,11 @@ export default function AdminSettingsPage() {
   }, []);
 
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  const neuralEnabled = useMemo(() => {
+    const item = settings.find((setting) => setting.key === "NLP_ENABLED");
+    return (drafts.NLP_ENABLED ?? item?.value ?? "false") === "true";
+  }, [drafts.NLP_ENABLED, settings]);
 
   async function saveSetting(setting: AdminSetting) {
     setSavingKey(setting.key);
@@ -92,10 +97,9 @@ export default function AdminSettingsPage() {
                 Setting di sini hanya untuk value non-secret. Database URL, API key, dan credential tetap harus diatur lewat environment provider.
               </p>
             </div>
-            <div className="rounded-2xl bg-white/10 px-4 py-3 text-blue-100 ring-1 ring-white/10">
-              <p className="text-xs font-bold uppercase tracking-wider">Pipeline NLP</p>
-              <p className="mt-1 text-lg font-extrabold">Model neural via Modal</p>
-              <p className="mt-1 text-[11px] text-blue-200">Fallback lokal otomatis aktif kalau Modal tidak terjangkau.</p>
+            <div className={`rounded-2xl px-4 py-3 ring-1 ${neuralEnabled ? "bg-emerald-500/15 text-emerald-100 ring-emerald-300/30" : "bg-white/10 text-blue-100 ring-white/10"}`}>
+              <p className="text-xs font-bold uppercase tracking-wider">Mode NLP</p>
+              <p className="mt-1 text-lg font-extrabold">{neuralEnabled ? "Neural aktif" : "Fallback ringan"}</p>
             </div>
           </div>
         </section>

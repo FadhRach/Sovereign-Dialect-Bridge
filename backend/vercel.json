@@ -1,7 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "builds": [{ "src": "api/index.py", "use": "@vercel/python" }],
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index.py" }],
-  "buildCommand": "pip install -r requirements.txt && python manage.py collectstatic --noinput",
-  "crons": [{ "path": "/api/system/keepalive/", "schedule": "0 0 * * *" }]
-}

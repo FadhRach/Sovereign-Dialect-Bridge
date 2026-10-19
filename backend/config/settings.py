@@ -79,13 +79,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database — DATABASE_URL diparse otomatis oleh django-environ.
 # Local dev dan production pakai Supabase Postgres via Session Pooler.
 #
-# CONN_MAX_AGE default 0 karena Vercel serverless tidak punya proses worker
-# persistent seperti gunicorn — tiap invocation bisa jadi proses baru, jadi
-# reuse koneksi antar-request tidak terjamin bermanfaat dan berisiko memegang
-# koneksi basi. Naikkan lewat env var kalau backend di-host di server persistent.
+# CONN_MAX_AGE 60 detik = persistent connection per worker (kurangi TCP+TLS
+# handshake ~50-200 ms per request). CONN_HEALTH_CHECKS hindari pakai koneksi
+# basi setelah Supabase auto-pause / restart.
 # -----------------------------------------------------------------------------
 DATABASES = {"default": env.db("DATABASE_URL")}
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=0)
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -131,21 +130,6 @@ if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
 # -----------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:3000"])
 CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://.*\.vercel\.app$"]
-
-# -----------------------------------------------------------------------------
-# Modal — layanan inference neural terpisah (../nlp-service/). MODAL_START_URL
-# memicu proses async; NLP_CALLBACK_URL adalah URL publik backend ini tempat
-# Modal mengirim hasilnya balik. MODAL_SHARED_SECRET dipakai dua arah.
-# -----------------------------------------------------------------------------
-MODAL_START_URL = env("MODAL_START_URL", default="")
-MODAL_HEALTH_URL = env("MODAL_HEALTH_URL", default="")
-MODAL_SHARED_SECRET = env("MODAL_SHARED_SECRET", default="")
-NLP_CALLBACK_URL = env("NLP_CALLBACK_URL", default="")
-
-# -----------------------------------------------------------------------------
-# Cron — dipakai Vercel Cron Jobs untuk memanggil endpoint keepalive Supabase.
-# -----------------------------------------------------------------------------
-CRON_SECRET = env("CRON_SECRET", default="")
 
 # -----------------------------------------------------------------------------
 # Auth integrations — Google login + reset password.
