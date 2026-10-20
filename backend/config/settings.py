@@ -24,6 +24,9 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
+# Secret untuk POST /api/system/keepalive/ (cron harian). Kosong = endpoint menolak semua.
+KEEPALIVE_SECRET = env("KEEPALIVE_SECRET", default="")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

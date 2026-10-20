@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" role="img" aria-labelledby="t d">
+  <title id="t">Pipeline NLP</title>
+  <desc id="d">Enam tahap pemrosesan aduan: deteksi dialek, terjemah, ringkas, ekstrak entitas, klasifikasi kategori, skor urgensi.</desc>
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .step { fill: #fff; stroke: #BFDBFE; stroke-width: 1.5; }
+    .num  { fill: #2563EB; }
+    .ttl  { font-size: 16px; font-weight: 700; fill: #1E2A4A; text-anchor: middle; }
+    .sub  { font-size: 12px; fill: #64748B; text-anchor: middle; }
+    .n    { font-size: 13px; font-weight: 700; fill: #fff; text-anchor: middle; }
+  </style>
+
+  <rect width="1200" height="400" rx="20" fill="#EFF6FF"/>
+  <text x="600" y="48" text-anchor="middle" font-size="22" font-weight="800" fill="#1E2A4A">Satu aduan, enam tahap otomatis</text>
+
+  <!-- 6 kartu: lebar 170, jarak 22, mulai x=40 -->
+  <g transform="translate(40 80)">
+    <g>
+      <rect class="step" width="170" height="120" rx="14"/>
+      <circle class="num" cx="85" cy="0" r="14"/><text class="n" x="85" y="5">1</text>
+      <text class="ttl" x="85" y="46">Deteksi dialek</text>
+      <text class="sub" x="85" y="70">scikit-learn</text>
+      <text class="sub" x="85" y="90">12 bahasa daerah</text>
+    </g>
+    <g transform="translate(192 0)">
+      <rect class="step" width="170" height="120" rx="14"/>
+      <circle class="num" cx="85" cy="0" r="14"/><text class="n" x="85" y="5">2</text>
+      <text class="ttl" x="85" y="46">Terjemah</text>
+      <text class="sub" x="85" y="70">NLLB-200</text>
+      <text class="sub" x="85" y="90">ke Bahasa Indonesia</text>
+    </g>
+    <g transform="translate(384 0)">
+      <rect class="step" width="170" height="120" rx="14"/>
+      <circle class="num" cx="85" cy="0" r="14"/><text class="n" x="85" y="5">3</text>
+      <text class="ttl" x="85" y="46">Ringkas</text>
+      <text class="sub" x="85" y="70">mT5 / IndoT5</text>
+      <text class="sub" x="85" y="90">NusaSum</text>
+    </g>
+    <g transform="translate(576 0)">
+      <rect class="step" width="170" height="120" rx="14"/>
+      <circle class="num" cx="85" cy="0" r="14"/><text class="n" x="85" y="5">4</text>
+      <text class="ttl" x="85" y="46">Ekstrak entitas</text>
+      <text class="sub" x="85" y="70">IndoBERT NER</text>
+      <text class="sub" x="85" y="90">lokasi, instansi</text>
+    </g>
+    <g transform="translate(768 0)">
+      <rect class="step" width="170" height="120" rx="14"/>
+      <circle class="num" cx="85" cy="0" r="14"/><text class="n" x="85" y="5">5</text>
+      <text class="ttl" x="85" y="46">Kategori</text>
+      <text class="sub" x="85" y="70">klasifikasi topik</text>
+      <text class="sub" x="85" y="90">+ kata kunci</text>
+    </g>
+    <g transform="translate(960 0)">
+      <rect class="step" width="170" height="120" rx="14"/>
+      <circle class="num" cx="85" cy="0" r="14"/><text class="n" x="85" y="5">6</text>
+      <text class="ttl" x="85" y="46">Skor urgensi</text>
+      <text class="sub" x="85" y="70">Rendah · Sedang</text>
+      <text class="sub" x="85" y="90">Tinggi · Kritis</text>
+    </g>
+    <!-- panah antar kartu -->
+    <g stroke="#2563EB" stroke-width="2.5" stroke-linecap="round" fill="none">
+      <path d="M174 60 H188" marker-end="url(#ar)"/>
+      <path d="M366 60 H380" marker-end="url(#ar)"/>
+      <path d="M558 60 H572" marker-end="url(#ar)"/>
+      <path d="M750 60 H764" marker-end="url(#ar)"/>
+      <path d="M942 60 H956" marker-end="url(#ar)"/>
+    </g>
+  </g>
+
+  <!-- Contoh -->
+  <g transform="translate(40 244)">
+    <rect width="540" height="112" rx="14" fill="#fff" stroke="#BFDBFE" stroke-width="1.5"/>
+    <text x="22" y="30" font-size="12" font-weight="700" fill="#2563EB" letter-spacing="1">INPUT · BAHASA JAWA</text>
+    <text x="22" y="62" font-size="16" fill="#1E2A4A">“Dalane rusak ing cedhak pasar, akeh bolongane</text>
+    <text x="22" y="86" font-size="16" fill="#1E2A4A">lan mbebayani yen wengi.”</text>
+
+    <path d="M556 56 H600" stroke="#2563EB" stroke-width="3" stroke-linecap="round" marker-end="url(#ar)"/>
+
+    <g transform="translate(620 0)">
+      <rect width="540" height="112" rx="14" fill="#1E2A4A"/>
+      <text x="22" y="30" font-size="12" font-weight="700" fill="#60A5FA" letter-spacing="1">OUTPUT · UNTUK ADMIN</text>
+      <text x="22" y="58" font-size="16" fill="#fff">Jalan rusak dekat pasar, banyak lubang dan berbahaya.</text>
+      <rect x="22" y="72" width="82" height="24" rx="12" fill="#2563EB"/>
+      <text x="63" y="89" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Jalan</text>
+      <rect x="114" y="72" width="82" height="24" rx="12" fill="#EF9F27"/>
+      <text x="155" y="89" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Tinggi</text>
+      <rect x="206" y="72" width="104" height="24" rx="12" fill="#fff" opacity=".15"/>
+      <text x="258" y="89" text-anchor="middle" font-size="12" font-weight="700" fill="#E2E8F0">Pasar (lokasi)</text>
+    </g>
+  </g>
+</svg>

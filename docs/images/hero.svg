@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" role="img" aria-labelledby="t d">
+  <title id="t">Sovereign Dialect-Bridge</title>
+  <desc id="d">Warga menulis aduan dalam bahasa daerah, AI menerjemahkan dan mengklasifikasikan, admin menindaklanjuti.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E2A4A"/>
+      <stop offset="1" stop-color="#121a33"/>
+    </linearGradient>
+    <pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="1.6" fill="#60A5FA" opacity=".22"/>
+    </pattern>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity=".35"/>
+    </filter>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linecap="round"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  </style>
+
+  <rect width="1200" height="500" rx="20" fill="url(#bg)"/>
+  <rect width="1200" height="500" rx="20" fill="url(#dots)"/>
+  <circle cx="1080" cy="40" r="220" fill="#2563EB" opacity=".18"/>
+
+  <!-- Teks kiri -->
+  <g transform="translate(64 0)">
+    <rect y="74" width="186" height="30" rx="15" fill="#2563EB" opacity=".25"/>
+    <text x="93" y="95" text-anchor="middle" font-size="14" font-weight="600" fill="#93C5FD" letter-spacing="1">12 BAHASA DAERAH</text>
+
+    <text y="170" font-size="54" font-weight="800" fill="#fff">Sovereign</text>
+    <text y="232" font-size="54" font-weight="800" fill="#60A5FA">Dialect-Bridge</text>
+
+    <text y="282" font-size="20" fill="#CBD5E1">Warga mengadu dalam bahasa daerahnya.</text>
+    <text y="310" font-size="20" fill="#CBD5E1">AI menerjemahkan, meringkas, dan menilai urgensinya,</text>
+    <text y="338" font-size="20" fill="#CBD5E1">pemerintah langsung paham.</text>
+
+    <g font-size="14" font-weight="600">
+      <rect y="378" width="118" height="34" rx="17" fill="#fff" opacity=".1"/>
+      <text x="59" y="400" text-anchor="middle" fill="#E2E8F0">Django + DRF</text>
+      <rect x="130" y="378" width="108" height="34" rx="17" fill="#fff" opacity=".1"/>
+      <text x="184" y="400" text-anchor="middle" fill="#E2E8F0">Next.js 14</text>
+      <rect x="250" y="378" width="150" height="34" rx="17" fill="#fff" opacity=".1"/>
+      <text x="325" y="400" text-anchor="middle" fill="#E2E8F0">NLLB · mT5 · NER</text>
+    </g>
+  </g>
+
+  <!-- Kartu 1: aduan warga -->
+  <g transform="translate(640 56)" filter="url(#sh)">
+    <rect width="500" height="132" rx="14" fill="#fff"/>
+    <rect width="500" height="38" rx="14" fill="#EFF6FF"/>
+    <rect y="24" width="500" height="14" fill="#EFF6FF"/>
+    <text x="20" y="25" font-size="14" font-weight="700" fill="#1E2A4A">Aduan warga</text>
+    <rect x="386" y="9" width="94" height="22" rx="11" fill="#2563EB"/>
+    <text x="433" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Jawa · 94%</text>
+    <text x="20" y="72" font-size="16" fill="#1E2A4A">“Dalane rusak ing cedhak pasar, akeh</text>
+    <text x="20" y="96" font-size="16" fill="#1E2A4A">bolongane lan mbebayani yen wengi.”</text>
+    <text x="20" y="120" font-size="12" fill="#64748B">Dialek terdeteksi otomatis</text>
+  </g>
+
+  <path d="M890 196 V224" stroke="#60A5FA" stroke-width="2.5" stroke-dasharray="2 6" stroke-linecap="round" marker-end="url(#ar)"/>
+
+  <!-- Kartu 2: hasil AI -->
+  <g transform="translate(640 236)" filter="url(#sh)">
+    <rect width="500" height="132" rx="14" fill="#fff"/>
+    <rect width="500" height="38" rx="14" fill="#EFF6FF"/>
+    <rect y="24" width="500" height="14" fill="#EFF6FF"/>
+    <text x="20" y="25" font-size="14" font-weight="700" fill="#1E2A4A">Hasil AI</text>
+    <text x="20" y="68" font-size="12" fill="#64748B">TERJEMAHAN · RINGKASAN</text>
+    <text x="20" y="92" font-size="16" fill="#1E2A4A">Jalan rusak dekat pasar, banyak lubang</text>
+    <text x="20" y="114" font-size="16" fill="#1E2A4A">dan berbahaya pada malam hari.</text>
+    <rect x="336" y="9" width="70" height="22" rx="11" fill="#DBEAFE"/>
+    <text x="371" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#1D4ED8">Jalan</text>
+    <rect x="414" y="9" width="66" height="22" rx="11" fill="#EF9F27"/>
+    <text x="447" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Tinggi</text>
+  </g>
+
+  <path d="M890 376 V404" stroke="#60A5FA" stroke-width="2.5" stroke-dasharray="2 6" stroke-linecap="round" marker-end="url(#ar)"/>
+
+  <!-- Kartu 3: admin -->
+  <g transform="translate(640 412)" filter="url(#sh)">
+    <rect width="500" height="56" rx="14" fill="#fff"/>
+    <circle cx="30" cy="28" r="10" fill="#2563EB"/>
+    <path d="M25 28 l4 4 l7 -8" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="52" y="33" font-size="15" font-weight="700" fill="#1E2A4A">Admin menindaklanjuti</text>
+    <rect x="372" y="17" width="108" height="24" rx="12" fill="#DCFCE7"/>
+    <text x="426" y="34" text-anchor="middle" font-size="12" font-weight="700" fill="#15803D">Sedang diproses</text>
+  </g>
+</svg>

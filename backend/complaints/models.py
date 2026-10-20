@@ -156,3 +156,12 @@ class SystemSetting(models.Model):
 
     def __str__(self):
         return self.key
+
+
+class KeepAlive(models.Model):
+    """Satu baris per ping harian — write ke DB supaya Supabase free tier tidak auto-pause."""
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]

@@ -9,6 +9,7 @@ urlpatterns = [
     path("complaints/<int:pk>/", views.ComplaintDetailView.as_view()),
     path("categories/", views.CategoryListView.as_view()),
     path("dashboard/stats/", views.DashboardStatsView.as_view()),
+    path("system/keepalive/", views.KeepAliveView.as_view()),
     path("admin/settings/", views.AdminSettingsView.as_view()),
     path("admin/users/", views.AdminUserListView.as_view()),
     path("admin/users/<int:pk>/", views.AdminUserDetailView.as_view()),

@@ -1,4 +1,5 @@
 import datetime
+import hmac
 import os
 import threading
 from django.conf import settings
@@ -13,7 +14,7 @@ from django.utils import timezone
 
 from django.db import models
 from accounts.permissions import IsAdminUser
-from .models import Complaint, Category, AdminNote, StatusHistory, Notification, SystemSetting
+from .models import Complaint, Category, AdminNote, StatusHistory, Notification, SystemSetting, KeepAlive
 from .serializers import (
     ADMIN_SETTING_DEFINITIONS,
     AdminSettingUpdateSerializer,
@@ -313,6 +314,25 @@ class AdminUserDetailView(APIView):
             complaints_resolved=Count("complaints", filter=models.Q(complaints__status="resolved")),
         ).get(pk=user.pk)
         return success_response(data=_serialize_admin_user(refreshed), message="User berhasil diperbarui.")
+
+
+class KeepAliveView(APIView):
+    """Dipanggil cron harian (GitHub Actions): insert 1 baris supaya Supabase tidak ter-pause."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    KEEP_ROWS = 30
+
+    def post(self, request):
+        expected = settings.KEEPALIVE_SECRET
+        given = request.headers.get("X-Keepalive-Secret", "")
+        # secret kosong = fitur mati (fail closed)
+        if not expected or not hmac.compare_digest(given, expected):
+            return error_response("Forbidden.", status_code=status.HTTP_403_FORBIDDEN)
+
+        KeepAlive.objects.create()
+        keep_ids = list(KeepAlive.objects.values_list("id", flat=True)[: self.KEEP_ROWS])
+        KeepAlive.objects.exclude(id__in=keep_ids).delete()
+        return success_response(data={"rows": len(keep_ids)}, message="Keepalive tercatat.")
 
 
 class AdminSettingsView(APIView):

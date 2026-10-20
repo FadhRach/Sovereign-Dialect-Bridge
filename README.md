@@ -1,102 +1,135 @@
+<p align="center">
+  <img src="docs/images/hero.svg" alt="Sovereign Dialect-Bridge: aduan warga dalam bahasa daerah, hasil terjemahan AI, dan tindak lanjut admin" width="100%">
+</p>
+
 # Sovereign Dialect-Bridge
 
-Platform pengaduan publik berbasis AI untuk warga Indonesia yang mendukung **12 dialek bahasa daerah**. Warga submit aduan dalam bahasa daerahnya → AI auto-detect dialek, terjemahkan ke Bahasa Indonesia, ringkas, ekstrak entitas, klasifikasi kategori, & skor urgensi — semua di background thread agar UX tetap cepat. Admin pemerintah review & tindak lanjut via dashboard terpisah.
+Platform pengaduan publik untuk warga Indonesia yang mendukung **12 bahasa daerah**. Warga menulis aduan dalam bahasa daerahnya, lalu AI mendeteksi dialek, menerjemahkan ke Bahasa Indonesia, meringkas, mengekstrak entitas, mengklasifikasi kategori, dan menilai urgensi. Admin pemerintah meninjau dan menindaklanjuti lewat dashboard terpisah.
 
-## Link Deployed :
-- Frontend  : https://sovereign-dialect-bridge.vercel.app/
-- Backend   : https://oinovenv-sovereign-dialect-bridge-api.hf.space/dashboard/
+| | Link |
+|---|---|
+| Frontend | https://sovereign-dialect-bridge.vercel.app/ |
+| Backend | https://oinovenv-sovereign-dialect-bridge-api.hf.space/dashboard/ |
 
-## Contributors
+---
 
-- Fadhlan Nur Rachman (2802491690)
-- Dian Rakhmawati Lestari (2802539085)
-- Matthew Ken Susanto (2802407736)
-- Nasauramecca Nour Haqqanshah Shodiqin (2802541921)
-- Bintang Nur Fadhlillah (2802536083)
+## Daftar Isi
 
-## Akun Tes Lokal
+1. [Cara Kerja](#cara-kerja)
+2. [Fitur](#fitur)
+3. [Arsitektur](#arsitektur)
+4. [Tech Stack](#tech-stack)
+5. [Halaman](#halaman)
+6. [Struktur Project](#struktur-project)
+7. [Setup Lokal](#setup-lokal)
+8. [Deploy dan Keepalive Supabase](#deploy-dan-keepalive-supabase)
+9. [Akun Tes](#akun-tes)
+10. [Tim](#tim)
 
-| Role  | Email                    | Password      |
-|-------|--------------------------|---------------|
-| Admin | `admintest@dialect.test` | `Admin12345!` |
-| User  | `wargatest@dialect.test` | `Warga12345!` |
+---
+
+## Cara Kerja
+
+Setiap aduan melewati enam tahap otomatis. Dialek terdeteksi langsung saat aduan dikirim, sisanya berjalan di background supaya warga tidak menunggu.
+
+<p align="center">
+  <img src="docs/images/pipeline.svg" alt="Pipeline NLP: deteksi dialek, terjemah, ringkas, ekstrak entitas, kategori, skor urgensi" width="100%">
+</p>
+
+### Bahasa yang didukung
+
+<p align="center">
+  <img src="docs/images/dialects.svg" alt="12 bahasa: Indonesia, Jawa, Sunda, Minang, Batak Toba, Bali, Bugis, Madura, Banjar, Aceh, Melayu, Betawi" width="100%">
+</p>
+
+---
+
+## Fitur
+
+| Untuk warga | Untuk admin |
+|---|---|
+| Submit aduan lewat wizard 3 langkah (cerita, lokasi dan foto, review) | Dashboard statistik, tren bulanan, dan donut kategori |
+| Dialek, terjemahan, dan ringkasan muncul otomatis di detail aduan | Tabel aduan dengan filter status, urgensi, dan dialek, plus QuickReview |
+| Pantau status aduan lewat timeline | Peta Leaflet dengan marker cluster dan filter |
+| Notifikasi saat status berubah | Ubah status, catatan admin, dan ekspor CSV |
+| Login email atau Google, reset password lewat kode email | Kelola user (role dan status) dan pengaturan sistem |
+
+---
+
+## Arsitektur
+
+```mermaid
+flowchart LR
+  Warga(["Warga / Admin"]) --> FE["Frontend<br/>Next.js 14<br/>Vercel"]
+  FE -- "REST + JWT" --> BE["Backend<br/>Django + DRF<br/>Hugging Face Space (Docker)"]
+  BE --> DB[("PostgreSQL<br/>Supabase")]
+  BE --> NLP["Model NLP<br/>NLLB, mT5/IndoT5, IndoBERT<br/>diunduh dari HF Hub"]
+  BE -. "foto aduan (opsional)" .-> CDN["Cloudinary"]
+  GH["GitHub Actions<br/>cron harian"] -- "POST /api/system/keepalive/" --> BE
+```
+
+Semua respons API memakai format `{"success": bool, "data": ..., "message": str}`.
+
+---
 
 ## Tech Stack
 
-| Layer    | Teknologi                                            | Deploy              |
-|----------|------------------------------------------------------|---------------------|
-| Backend  | Django 4.2 + DRF + SimpleJWT                         | Hugging Face Spaces |
-| Frontend | Next.js 14 (App Router) + TypeScript + Tailwind + Framer Motion | Vercel              |
-| Database | PostgreSQL (Supabase, Session Pooler)                | Supabase            |
-| Storage  | Cloudinary (opsional, foto aduan)                    | Cloudinary          |
-| NLP      | NLLB-200 + mT5/IndoT5 NusaSum + IndoBERT NER + langdetect | HF Hub (auto-pull) |
-| Map      | Leaflet.js + leaflet.markercluster + OpenStreetMap   | —                   |
-| Auth     | JWT (1h access / 7d refresh, rotation + blacklist) + Google Sign-In | — |
+| Layer | Teknologi |
+|---|---|
+| Backend | Django 4.2, Django REST Framework, SimpleJWT (1 jam access, 7 hari refresh, rotation + blacklist) |
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind, Framer Motion |
+| Database | PostgreSQL di Supabase (Session Pooler) |
+| NLP | NLLB-200, mT5 / IndoT5 NusaSum, IndoBERT NER, deteksi dialek scikit-learn |
+| Peta | Leaflet, leaflet.markercluster, OpenStreetMap |
+| Auth | JWT, Google Sign-In, reset password via kode email |
+| Storage foto | Cloudinary (opsional) |
+| Deploy | Hugging Face Spaces (backend), Vercel (frontend) |
 
+---
 
 ## Halaman
 
-| Path                | Akses        | Deskripsi |
-|---------------------|--------------|-----------|
-| `/`                 | Public       | Landing page 8-section dengan animasi |
-| `/login`            | Public       | Two-panel: brand navy + form login + Google Sign-In |
-| `/register`         | Public       | Two-panel: brand navy + wizard registrasi |
-| `/forgot-password`  | Public       | Reset password via email code |
-| `/dashboard`        | user         | Stat + tabs + daftar aduan milik sendiri |
-| `/submit`           | user         | Wizard submit aduan 3-step |
-| `/profile`          | user / admin | Edit profil, ubah password |
-| `/complaint/[id]`   | user / admin | Detail aduan; admin dapat sticky action panel |
-| `/admin`            | admin        | Dashboard utama + QuickReview slide-in |
-| `/admin/map`        | admin        | Peta Leaflet + filter overlay |
-| `/admin/users`      | admin        | Tabel + modal toggle role/status |
-| `/admin/settings`   | admin        | Konfigurasi sistem |
-| `/admin/profile`    | admin        | Profil admin |
+| Path | Akses | Deskripsi |
+|---|---|---|
+| `/` | Publik | Landing page |
+| `/login`, `/register`, `/forgot-password` | Publik | Autentikasi |
+| `/dashboard` | User | Daftar aduan milik sendiri |
+| `/submit` | User | Wizard submit aduan |
+| `/complaint/[id]` | User / Admin | Detail aduan, admin punya panel aksi |
+| `/profile` | User / Admin | Edit profil dan password |
+| `/admin` | Admin | Dashboard utama |
+| `/admin/map` | Admin | Peta aduan |
+| `/admin/users` | Admin | Kelola user |
+| `/admin/settings` | Admin | Konfigurasi sistem |
+
+---
 
 ## Struktur Project
 
 ```
 Sovereign-Dialect-Bridge/
-├── backend/                       Django REST API (Docker → HF Spaces port 7860)
-│   ├── accounts/                  Auth: CustomUser, JWT, Google OAuth, password reset
-│   ├── complaints/                Complaint CRUD, admin ops, dashboard stats, map, notifications, export
-│   ├── nlp/                       NLP pipeline (NLLB / mT5 / IndoT5 / IndoBERT NER + graceful fallback)
-│   ├── dashboard/                 Internal dashboard (model status, runtime logs)
-│   ├── config/                    Django settings, root URLs, WSGI
-│   ├── scripts/                   upload_mt5_to_hf.py, upload_dialect_to_hf.py
-│   ├── Dockerfile                 Image untuk HF Spaces (port 7860)
-│   └── requirements.txt           Python deps
-│
-├── frontend/                      Next.js 14 (App Router) + Tailwind + Framer Motion
-│   ├── public/
-│   │   ├── indonesia-dotted.svg  Peta Indonesia dotted (5217 titik, generated dari JPEG asli)
-│   │   ├── indonesianmap.jpeg    Source peta untuk generator dots
-│   │   ├── batik-pattern.png     Pattern batik untuk overlay
-│   │   ├── logo_blue.png         Logo brand (dipakai di seluruh app)
-│   │   └── logo_white.png        Logo brand putih (dipakai di landing page)
-│   ├── scripts/
-│   │   └── gen_indonesia_dots.py Generator SVG dotted dari JPEG (Pillow)
+├── backend/             Django REST API (Docker, port 7860 di HF Spaces)
+│   ├── accounts/        CustomUser, JWT, Google OAuth, reset password
+│   ├── complaints/      CRUD aduan, aksi admin, statistik, peta, notifikasi, keepalive
+│   ├── nlp/             Pipeline NLP + fallback
+│   ├── dashboard/       Dashboard internal (status model, log)
+│   ├── config/          Settings, root URLs, WSGI
+│   └── Dockerfile
+├── frontend/            Next.js 14
 │   └── src/
-│       ├── app/(auth)/            login, register, forgot-password (animasi Framer Motion)
-│       ├── app/(main)/(user)/    dashboard, submit, complaint, profile
-│       ├── app/(main)/admin/      dashboard, map, users, settings, profile
-│       ├── components/
-│       │   ├── features/landing/  Hero, HowItWorks, PublicMap, FeaturesGrid, LiveComplaints, Testimonials, Contact, Footer, PublicNav
-│       │   ├── features/auth/     AuthProvider, AuthGate, AuthBrandPanel, AuthBackLink, RegisterForm, GoogleSignInButton
-│       │   ├── features/complaint/ ComplaintCard, ComplaintForm/, NLPResultCard, StatusTimeline
-│       │   ├── features/map/      ComplaintMap, MiniComplaintMap, LocationPickerMap, mapUtils
-│       │   ├── layout/            Navbar, AdminSidebar, NotificationBell
-│       │   └── ui/                Logo, Button, Input, Card, Alert, Spinner, DialectBadge, UrgencyIndicator, StatusBadge, Skeleton, ConfirmDialog
-│       ├── hooks/                 useAuth, useFetch, useApiForm, useComplaints, useComplaintDetail, useGeolocation
-│       ├── lib/                   api.ts (axios singleton), auth.ts (JWT storage), cn.ts, constants.ts, theme.ts
-│       └── types/                 Semua TypeScript interfaces
-│
-└── docs/                          (di-gitignore, lokal saja)
-    ├── API_ENDPOINTS.md           Daftar endpoint singkat
-    ├── DEPLOYMENT.md              Runbook deploy lengkap
-    └── FEATURES_FLOW.md           Acceptance criteria & flow detail
+│       ├── app/         Route: (auth), (main)/(user), (main)/admin
+│       ├── components/  ui/, features/<domain>/, layout/
+│       ├── hooks/       useFetch, useApiForm, useComplaints, ...
+│       └── lib/         api.ts (Axios), auth.ts, constants.ts, theme.ts
+├── docs/images/         Gambar untuk README
+└── .github/workflows/   keepalive.yml
 ```
 
+---
+
 ## Setup Lokal
+
+Butuh Python 3.11+, Node.js 18+, dan database Supabase (tidak perlu install Postgres lokal).
 
 ```bash
 # 1. Backend
@@ -113,12 +146,53 @@ npm install
 cp .env.local.example .env.local                    # NEXT_PUBLIC_API_URL=http://localhost:8000
 npm run dev                                         # http://localhost:3000
 ```
-> Jika frontend dipakai di port selain 3000, tambahkan ke `CORS_ALLOWED_ORIGINS` di `backend/.env`.
 
-## Deploy Production
+> Jika frontend jalan di port selain 3000, tambahkan ke `CORS_ALLOWED_ORIGINS` di `backend/.env`.
 
-- **Backend** → Hugging Face Spaces (Docker SDK, port `7860`). Repo HF Space berisi konten folder `backend/` saja.
-- **Frontend** → Vercel. Root directory `frontend/`. Set `NEXT_PUBLIC_API_URL` ke domain HF Space.
-- **Database** → Supabase via **Session Pooler URI**.
+Tes backend: `cd backend && pytest`
+
+---
+
+## Deploy dan Keepalive Supabase
+
+- **Backend**: Hugging Face Spaces (Docker SDK, port `7860`). Isi Space adalah folder `backend/`.
+- **Frontend**: Vercel, root directory `frontend/`, set `NEXT_PUBLIC_API_URL` ke domain HF Space.
+- **Database**: Supabase lewat **Session Pooler URI**.
+
+### Supaya Supabase dan HF Space tidak mati
+
+Supabase free tier otomatis di-pause kalau tidak ada aktivitas, dan HF Space gratis tidur saat sepi. Workflow `.github/workflows/keepalive.yml` memanggil `POST /api/system/keepalive/` tiap hari pukul 03:00 UTC. Backend lalu menulis satu baris ke tabel `complaints_keepalive` (hanya 30 baris terakhir yang disimpan), sehingga database selalu punya aktivitas tulis.
+
+Setup satu kali:
+
+1. Buat secret acak: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+2. **Hugging Face Space** → Settings → Variables and secrets → tambah secret `KEEPALIVE_SECRET`.
+3. **GitHub repo** → Settings → Secrets and variables → Actions → tambah:
+   - `KEEPALIVE_SECRET` (nilai sama dengan di HF)
+   - `BACKEND_URL` = `https://oinovenv-sovereign-dialect-bridge-api.hf.space`
+4. Tab **Actions** → *Supabase keepalive* → **Run workflow** untuk uji. Hasil sukses: `{"success": true, "data": {"rows": 1}, ...}`.
+
+> GitHub menonaktifkan workflow terjadwal setelah 60 hari tanpa aktivitas di repo. Kalau itu terjadi, buka tab Actions dan aktifkan lagi.
+
+---
+
+## Akun Tes
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admintest@dialect.test` | `Admin12345!` |
+| User | `wargatest@dialect.test` | `Warga12345!` |
+
+---
+
+## Tim
+
+| Nama | NIM |
+|---|---|
+| Fadhlan Nur Rachman | 2802491690 |
+| Dian Rakhmawati Lestari | 2802539085 |
+| Matthew Ken Susanto | 2802407736 |
+| Nasauramecca Nour Haqqanshah Shodiqin | 2802541921 |
+| Bintang Nur Fadhlillah | 2802536083 |
 
 Made with care by Group 7

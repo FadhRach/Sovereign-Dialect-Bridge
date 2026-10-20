@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 330" width="1200" height="330" role="img" aria-labelledby="t d">
+  <title id="t">12 bahasa yang didukung</title>
+  <desc id="d">Indonesia, Jawa, Sunda, Minang, Batak Toba, Bali, Bugis, Madura, Banjar, Aceh, Melayu, Betawi.</desc>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .card { fill: #fff; stroke: #BFDBFE; stroke-width: 1.5; }
+    .code { font-size: 20px; font-weight: 800; fill: #2563EB; }
+    .name { font-size: 15px; font-weight: 600; fill: #1E2A4A; }
+  </style>
+
+  <rect width="1200" height="330" rx="20" fill="#1E2A4A"/>
+  <text x="600" y="50" text-anchor="middle" font-size="22" font-weight="800" fill="#fff">12 bahasa yang dikenali otomatis</text>
+
+  <!-- 6 kolom x 2 baris; kartu 170x78, jarak 22 -->
+  <g transform="translate(40 84)">
+    <g><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">id</text><text class="name" x="20" y="58">Bahasa Indonesia</text></g>
+    <g transform="translate(192 0)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">jv</text><text class="name" x="20" y="58">Bahasa Jawa</text></g>
+    <g transform="translate(384 0)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">su</text><text class="name" x="20" y="58">Bahasa Sunda</text></g>
+    <g transform="translate(576 0)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">min</text><text class="name" x="20" y="58">Bahasa Minang</text></g>
+    <g transform="translate(768 0)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">bbc</text><text class="name" x="20" y="58">Batak Toba</text></g>
+    <g transform="translate(960 0)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">ban</text><text class="name" x="20" y="58">Bahasa Bali</text></g>
+
+    <g transform="translate(0 100)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">bug</text><text class="name" x="20" y="58">Bahasa Bugis</text></g>
+    <g transform="translate(192 100)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">mad</text><text class="name" x="20" y="58">Bahasa Madura</text></g>
+    <g transform="translate(384 100)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">bjn</text><text class="name" x="20" y="58">Bahasa Banjar</text></g>
+    <g transform="translate(576 100)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">ace</text><text class="name" x="20" y="58">Bahasa Aceh</text></g>
+    <g transform="translate(768 100)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">ms</text><text class="name" x="20" y="58">Bahasa Melayu</text></g>
+    <g transform="translate(960 100)"><rect class="card" width="170" height="78" rx="12"/><text class="code" x="20" y="34">bew</text><text class="name" x="20" y="58">Bahasa Betawi</text></g>
+  </g>
+
+  <text x="600" y="302" text-anchor="middle" font-size="14" fill="#93C5FD">Bahasa yang tidak didukung NLLB (mis. Madura, Batak Toba) tetap diterjemahkan lewat jalur fallback.</text>
+</svg>
