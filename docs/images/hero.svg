@@ -1,90 +1,158 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 590" width="1200" height="590" role="img" aria-labelledby="t d">
   <title id="t">Sovereign Dialect-Bridge</title>
-  <desc id="d">Warga menulis aduan dalam bahasa daerah, AI menerjemahkan dan mengklasifikasikan, admin menindaklanjuti.</desc>
+  <desc id="d">Animasi alur: warga mengetik aduan dalam bahasa Jawa, pipeline NLP memprosesnya enam tahap, hasilnya muncul di dashboard admin dalam Bahasa Indonesia.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1E2A4A"/>
-      <stop offset="1" stop-color="#121a33"/>
-    </linearGradient>
-    <pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse">
-      <circle cx="3" cy="3" r="1.6" fill="#60A5FA" opacity=".22"/>
-    </pattern>
-    <filter id="sh" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity=".35"/>
-    </filter>
-    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linecap="round"/>
-    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1E2A4A"/><stop offset="1" stop-color="#121a33"/></linearGradient>
+    <pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.5" fill="#60A5FA" opacity=".18"/></pattern>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity=".35"/></filter>
   </defs>
   <style>
-    text { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  </style>
+text{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.cover{transform:scaleX(0)}
+.flow{animation:dash 1s linear infinite}
+.spin{animation:spin 1s linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes dash{to{stroke-dashoffset:-20}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes scene{0.0%{opacity:0}3.75%{opacity:1}95.625%{opacity:1}98.75%{opacity:0}100.0%{opacity:0}}@keyframes cover1{0.0%{transform:scaleX(1)}3.75%{transform:scaleX(1)}11.25%{transform:scaleX(0)}100.0%{transform:scaleX(0)}}@keyframes cover2{0.0%{transform:scaleX(1)}11.25%{transform:scaleX(1)}18.75%{transform:scaleX(0)}100.0%{transform:scaleX(0)}}@keyframes cover3{0.0%{transform:scaleX(1)}18.75%{transform:scaleX(1)}26.25%{transform:scaleX(0)}100.0%{transform:scaleX(0)}}@keyframes badge{0.0%{opacity:0;transform:scale(.8)}27.5%{opacity:0;transform:scale(.8)}29.375%{opacity:1;transform:scale(1)}100.0%{opacity:1;transform:scale(1)}}@keyframes btn{0.0%{transform:scale(1)}31.25%{transform:scale(1)}32.188%{transform:scale(.95)}33.438%{transform:scale(1)}100.0%{transform:scale(1)}}@keyframes pkt1{0.0%{opacity:0;transform:translateX(0px)}33.75%{opacity:0;transform:translateX(0px)}34.375%{opacity:1;transform:translateX(0px)}38.125%{opacity:1;transform:translateX(45px)}38.75%{opacity:0;transform:translateX(45px)}100.0%{opacity:0;transform:translateX(45px)}}@keyframes pkt2{0.0%{opacity:0;transform:translateX(0px)}64.375%{opacity:0;transform:translateX(0px)}65.0%{opacity:1;transform:translateX(0px)}68.75%{opacity:1;transform:translateX(45px)}69.375%{opacity:0;transform:translateX(45px)}100.0%{opacity:0;transform:translateX(45px)}}@keyframes spinner{0.0%{opacity:0}37.5%{opacity:0}38.75%{opacity:1}63.75%{opacity:1}65.0%{opacity:0}100.0%{opacity:0}}@keyframes done{0.0%{opacity:0}64.375%{opacity:0}65.625%{opacity:1}100.0%{opacity:1}}@keyframes tick0{0.0%{opacity:0}40.0%{opacity:0}41.25%{opacity:1}100.0%{opacity:1}}@keyframes dim0{0.0%{opacity:.45}40.0%{opacity:.45}41.25%{opacity:1}100.0%{opacity:1}}@keyframes tick1{0.0%{opacity:0}44.375%{opacity:0}45.625%{opacity:1}100.0%{opacity:1}}@keyframes dim1{0.0%{opacity:.45}44.375%{opacity:.45}45.625%{opacity:1}100.0%{opacity:1}}@keyframes tick2{0.0%{opacity:0}48.75%{opacity:0}50.0%{opacity:1}100.0%{opacity:1}}@keyframes dim2{0.0%{opacity:.45}48.75%{opacity:.45}50.0%{opacity:1}100.0%{opacity:1}}@keyframes tick3{0.0%{opacity:0}53.125%{opacity:0}54.375%{opacity:1}100.0%{opacity:1}}@keyframes dim3{0.0%{opacity:.45}53.125%{opacity:.45}54.375%{opacity:1}100.0%{opacity:1}}@keyframes tick4{0.0%{opacity:0}57.5%{opacity:0}58.75%{opacity:1}100.0%{opacity:1}}@keyframes dim4{0.0%{opacity:.45}57.5%{opacity:.45}58.75%{opacity:1}100.0%{opacity:1}}@keyframes tick5{0.0%{opacity:0}61.875%{opacity:0}63.125%{opacity:1}100.0%{opacity:1}}@keyframes dim5{0.0%{opacity:.45}61.875%{opacity:.45}63.125%{opacity:1}100.0%{opacity:1}}@keyframes skel{0.0%{opacity:1}68.75%{opacity:1}70.625%{opacity:0}100.0%{opacity:0}}@keyframes result{0.0%{opacity:0;transform:translateY(10px)}68.75%{opacity:0;transform:translateY(10px)}71.875%{opacity:1;transform:translateY(0)}100.0%{opacity:1;transform:translateY(0)}}@keyframes baru{0.0%{opacity:1}81.25%{opacity:1}83.125%{opacity:0}100.0%{opacity:0}}@keyframes proses{0.0%{opacity:0}81.25%{opacity:0}83.125%{opacity:1}100.0%{opacity:1}}
+.a-scene{animation:scene 16.0s infinite;}.a-cover1{animation:cover1 16.0s infinite;transform-box:fill-box;transform-origin:right center;animation-timing-function:steps(24,end);}.a-cover2{animation:cover2 16.0s infinite;transform-box:fill-box;transform-origin:right center;animation-timing-function:steps(24,end);}.a-cover3{animation:cover3 16.0s infinite;transform-box:fill-box;transform-origin:right center;animation-timing-function:steps(24,end);}.a-badge{animation:badge 16.0s infinite;transform-box:fill-box;transform-origin:center;}.a-btn{animation:btn 16.0s infinite;transform-box:fill-box;transform-origin:center;}.a-pkt1{animation:pkt1 16.0s infinite;}.a-pkt2{animation:pkt2 16.0s infinite;}.a-spinner{animation:spinner 16.0s infinite;}.a-done{animation:done 16.0s infinite;}.a-tick0{animation:tick0 16.0s infinite;}.a-dim0{animation:dim0 16.0s infinite;}.a-tick1{animation:tick1 16.0s infinite;}.a-dim1{animation:dim1 16.0s infinite;}.a-tick2{animation:tick2 16.0s infinite;}.a-dim2{animation:dim2 16.0s infinite;}.a-tick3{animation:tick3 16.0s infinite;}.a-dim3{animation:dim3 16.0s infinite;}.a-tick4{animation:tick4 16.0s infinite;}.a-dim4{animation:dim4 16.0s infinite;}.a-tick5{animation:tick5 16.0s infinite;}.a-dim5{animation:dim5 16.0s infinite;}.a-skel{animation:skel 16.0s infinite;}.a-result{animation:result 16.0s infinite;}.a-baru{animation:baru 16.0s infinite;}.a-proses{animation:proses 16.0s infinite;}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
 
-  <rect width="1200" height="500" rx="20" fill="url(#bg)"/>
-  <rect width="1200" height="500" rx="20" fill="url(#dots)"/>
-  <circle cx="1080" cy="40" r="220" fill="#2563EB" opacity=".18"/>
+  <rect width="1200" height="590" rx="20" fill="url(#bg)"/>
+  <rect width="1200" height="590" rx="20" fill="url(#dots)"/>
 
-  <!-- Teks kiri -->
-  <g transform="translate(64 0)">
-    <rect y="74" width="186" height="30" rx="15" fill="#2563EB" opacity=".25"/>
-    <text x="93" y="95" text-anchor="middle" font-size="14" font-weight="600" fill="#93C5FD" letter-spacing="1">12 BAHASA DAERAH</text>
+  <text x="40" y="72" font-size="44" font-weight="800" fill="#fff">Sovereign <tspan fill="#60A5FA">Dialect-Bridge</tspan></text>
+  <text x="40" y="108" font-size="18" fill="#CBD5E1">Warga mengadu dalam bahasa daerah, pemerintah membacanya dalam Bahasa Indonesia.</text>
 
-    <text y="170" font-size="54" font-weight="800" fill="#fff">Sovereign</text>
-    <text y="232" font-size="54" font-weight="800" fill="#60A5FA">Dialect-Bridge</text>
+  <g class="a-scene">
+    <!-- 1. Aduan warga -->
+    <g transform="translate(40 170)" filter="url(#sh)">
+      <rect width="330" height="380" rx="16" fill="#fff"/>
+      <path d="M0 16a16 16 0 0 1 16-16h298a16 16 0 0 1 16 16v36H0z" fill="#EFF6FF"/>
+      <text x="22" y="32" font-size="16" font-weight="700" fill="#1E2A4A">Aduan warga</text>
+      <g class="a-badge"><rect x="212" y="13" width="96" height="26" rx="13" fill="#2563EB"/>
+        <text x="260" y="31" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">Jawa · 94%</text></g>
 
-    <text y="282" font-size="20" fill="#CBD5E1">Warga mengadu dalam bahasa daerahnya.</text>
-    <text y="310" font-size="20" fill="#CBD5E1">AI menerjemahkan, meringkas, dan menilai urgensinya,</text>
-    <text y="338" font-size="20" fill="#CBD5E1">pemerintah langsung paham.</text>
+      <text x="22" y="84" font-size="12" fill="#64748B">Ceritakan masalahmu</text>
+      <rect x="22" y="96" width="286" height="120" rx="10" fill="#F1F5F9" stroke="#E2E8F0"/>
+      <text x="34" y="130" font-size="14" fill="#1E2A4A">Dalane rusak ing cedhak pasar,</text>
+      <text x="34" y="158" font-size="14" fill="#1E2A4A">akeh bolongane lan mbebayani</text>
+      <text x="34" y="186" font-size="14" fill="#1E2A4A">yen wengi. Mugi enggal didandani.</text>
+      <rect class="cover a-cover1" x="30" y="113" width="270" height="24" fill="#F1F5F9"/>
+      <rect class="cover a-cover2" x="30" y="141" width="270" height="24" fill="#F1F5F9"/>
+      <rect class="cover a-cover3" x="30" y="169" width="270" height="24" fill="#F1F5F9"/>
 
-    <g font-size="14" font-weight="600">
-      <rect y="378" width="118" height="34" rx="17" fill="#fff" opacity=".1"/>
-      <text x="59" y="400" text-anchor="middle" fill="#E2E8F0">Django + DRF</text>
-      <rect x="130" y="378" width="108" height="34" rx="17" fill="#fff" opacity=".1"/>
-      <text x="184" y="400" text-anchor="middle" fill="#E2E8F0">Next.js 14</text>
-      <rect x="250" y="378" width="150" height="34" rx="17" fill="#fff" opacity=".1"/>
-      <text x="325" y="400" text-anchor="middle" fill="#E2E8F0">NLLB · mT5 · NER</text>
+      <text x="22" y="244" font-size="12" fill="#64748B">Lokasi</text>
+      <rect x="22" y="254" width="286" height="40" rx="10" fill="#F1F5F9"/>
+      <path d="M42 266a6 6 0 0 1 6 6c0 4.5-6 10-6 10s-6-5.5-6-10a6 6 0 0 1 6-6z" fill="#2563EB"/>
+      <circle cx="42" cy="272" r="2.2" fill="#fff"/>
+      <text x="58" y="279" font-size="13" fill="#1E2A4A">Dekat Pasar Induk</text>
+
+      <g class="a-btn"><rect x="22" y="318" width="286" height="44" rx="12" fill="#2563EB"/>
+        <text x="165" y="346" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">Kirim aduan</text></g>
     </g>
-  </g>
 
-  <!-- Kartu 1: aduan warga -->
-  <g transform="translate(640 56)" filter="url(#sh)">
-    <rect width="500" height="132" rx="14" fill="#fff"/>
-    <rect width="500" height="38" rx="14" fill="#EFF6FF"/>
-    <rect y="24" width="500" height="14" fill="#EFF6FF"/>
-    <text x="20" y="25" font-size="14" font-weight="700" fill="#1E2A4A">Aduan warga</text>
-    <rect x="386" y="9" width="94" height="22" rx="11" fill="#2563EB"/>
-    <text x="433" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Jawa · 94%</text>
-    <text x="20" y="72" font-size="16" fill="#1E2A4A">“Dalane rusak ing cedhak pasar, akeh</text>
-    <text x="20" y="96" font-size="16" fill="#1E2A4A">bolongane lan mbebayani yen wengi.”</text>
-    <text x="20" y="120" font-size="12" fill="#64748B">Dialek terdeteksi otomatis</text>
-  </g>
+    <!-- konektor 1 -->
+    <line class="flow" x1="378" y1="360" x2="432" y2="360" stroke="#60A5FA" stroke-width="2.5" stroke-dasharray="4 6" stroke-linecap="round" opacity=".6"/>
+    <polygon points="431,352 444,360 431,368" fill="#60A5FA"/>
+    <circle class="a-pkt1" cx="385" cy="360" r="7" fill="#93C5FD" opacity="0"/>
 
-  <path d="M890 196 V224" stroke="#60A5FA" stroke-width="2.5" stroke-dasharray="2 6" stroke-linecap="round" marker-end="url(#ar)"/>
+    <!-- 2. Pipeline NLP -->
+    <g transform="translate(445 170)" filter="url(#sh)">
+      <rect width="310" height="380" rx="16" fill="#223256" stroke="#3B4F7E" stroke-width="1.5"/>
+      <text x="22" y="32" font-size="16" font-weight="700" fill="#fff">Pipeline NLP</text>
+      <g transform="translate(278 26)">
+        <g class="a-spinner" opacity="0"><circle class="spin" r="9" fill="none" stroke="#60A5FA" stroke-width="3" stroke-dasharray="28 60" stroke-linecap="round"/></g>
+        <g class="a-done"><circle r="10" fill="#22C55E"/><path d="M-5 0.5l3.6 3.6L5.5-3" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+      </g>
+      <line x1="22" y1="52" x2="288" y2="52" stroke="#3B4F7E"/>
+      
+    <g transform="translate(22 76)">
+      <circle cx="12" cy="14" r="11" fill="none" stroke="#475A8A" stroke-width="2"/>
+      <g class="a-tick0"><circle cx="12" cy="14" r="11" fill="#2563EB"/>
+        <path d="M7 14.5l3.6 3.6L17.5 10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <g class="a-dim0"><text x="36" y="19" font-size="15" font-weight="600" fill="#fff">Deteksi dialek</text>
+      <text x="266" y="19" font-size="12" fill="#8FA3CC" text-anchor="end">scikit-learn</text></g>
+    </g>
+    <g transform="translate(22 125)">
+      <circle cx="12" cy="14" r="11" fill="none" stroke="#475A8A" stroke-width="2"/>
+      <g class="a-tick1"><circle cx="12" cy="14" r="11" fill="#2563EB"/>
+        <path d="M7 14.5l3.6 3.6L17.5 10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <g class="a-dim1"><text x="36" y="19" font-size="15" font-weight="600" fill="#fff">Terjemah</text>
+      <text x="266" y="19" font-size="12" fill="#8FA3CC" text-anchor="end">NLLB-200</text></g>
+    </g>
+    <g transform="translate(22 174)">
+      <circle cx="12" cy="14" r="11" fill="none" stroke="#475A8A" stroke-width="2"/>
+      <g class="a-tick2"><circle cx="12" cy="14" r="11" fill="#2563EB"/>
+        <path d="M7 14.5l3.6 3.6L17.5 10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <g class="a-dim2"><text x="36" y="19" font-size="15" font-weight="600" fill="#fff">Ringkas</text>
+      <text x="266" y="19" font-size="12" fill="#8FA3CC" text-anchor="end">mT5 / IndoT5</text></g>
+    </g>
+    <g transform="translate(22 223)">
+      <circle cx="12" cy="14" r="11" fill="none" stroke="#475A8A" stroke-width="2"/>
+      <g class="a-tick3"><circle cx="12" cy="14" r="11" fill="#2563EB"/>
+        <path d="M7 14.5l3.6 3.6L17.5 10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <g class="a-dim3"><text x="36" y="19" font-size="15" font-weight="600" fill="#fff">Ekstrak entitas</text>
+      <text x="266" y="19" font-size="12" fill="#8FA3CC" text-anchor="end">IndoBERT</text></g>
+    </g>
+    <g transform="translate(22 272)">
+      <circle cx="12" cy="14" r="11" fill="none" stroke="#475A8A" stroke-width="2"/>
+      <g class="a-tick4"><circle cx="12" cy="14" r="11" fill="#2563EB"/>
+        <path d="M7 14.5l3.6 3.6L17.5 10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <g class="a-dim4"><text x="36" y="19" font-size="15" font-weight="600" fill="#fff">Kategori</text>
+      <text x="266" y="19" font-size="12" fill="#8FA3CC" text-anchor="end">klasifikasi</text></g>
+    </g>
+    <g transform="translate(22 321)">
+      <circle cx="12" cy="14" r="11" fill="none" stroke="#475A8A" stroke-width="2"/>
+      <g class="a-tick5"><circle cx="12" cy="14" r="11" fill="#2563EB"/>
+        <path d="M7 14.5l3.6 3.6L17.5 10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>
+      <g class="a-dim5"><text x="36" y="19" font-size="15" font-weight="600" fill="#fff">Skor urgensi</text>
+      <text x="266" y="19" font-size="12" fill="#8FA3CC" text-anchor="end">4 level</text></g>
+    </g>
+    </g>
 
-  <!-- Kartu 2: hasil AI -->
-  <g transform="translate(640 236)" filter="url(#sh)">
-    <rect width="500" height="132" rx="14" fill="#fff"/>
-    <rect width="500" height="38" rx="14" fill="#EFF6FF"/>
-    <rect y="24" width="500" height="14" fill="#EFF6FF"/>
-    <text x="20" y="25" font-size="14" font-weight="700" fill="#1E2A4A">Hasil AI</text>
-    <text x="20" y="68" font-size="12" fill="#64748B">TERJEMAHAN · RINGKASAN</text>
-    <text x="20" y="92" font-size="16" fill="#1E2A4A">Jalan rusak dekat pasar, banyak lubang</text>
-    <text x="20" y="114" font-size="16" fill="#1E2A4A">dan berbahaya pada malam hari.</text>
-    <rect x="336" y="9" width="70" height="22" rx="11" fill="#DBEAFE"/>
-    <text x="371" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#1D4ED8">Jalan</text>
-    <rect x="414" y="9" width="66" height="22" rx="11" fill="#EF9F27"/>
-    <text x="447" y="25" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Tinggi</text>
-  </g>
+    <!-- konektor 2 -->
+    <line class="flow" x1="763" y1="360" x2="817" y2="360" stroke="#60A5FA" stroke-width="2.5" stroke-dasharray="4 6" stroke-linecap="round" opacity=".6"/>
+    <polygon points="816,352 829,360 816,368" fill="#60A5FA"/>
+    <circle class="a-pkt2" cx="770" cy="360" r="7" fill="#93C5FD" opacity="0"/>
 
-  <path d="M890 376 V404" stroke="#60A5FA" stroke-width="2.5" stroke-dasharray="2 6" stroke-linecap="round" marker-end="url(#ar)"/>
+    <!-- 3. Dashboard admin -->
+    <g transform="translate(830 170)" filter="url(#sh)">
+      <rect width="330" height="380" rx="16" fill="#fff"/>
+      <path d="M0 16a16 16 0 0 1 16-16h298a16 16 0 0 1 16 16v36H0z" fill="#EFF6FF"/>
+      <text x="22" y="32" font-size="16" font-weight="700" fill="#1E2A4A">Dashboard admin</text>
 
-  <!-- Kartu 3: admin -->
-  <g transform="translate(640 412)" filter="url(#sh)">
-    <rect width="500" height="56" rx="14" fill="#fff"/>
-    <circle cx="30" cy="28" r="10" fill="#2563EB"/>
-    <path d="M25 28 l4 4 l7 -8" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="52" y="33" font-size="15" font-weight="700" fill="#1E2A4A">Admin menindaklanjuti</text>
-    <rect x="372" y="17" width="108" height="24" rx="12" fill="#DCFCE7"/>
-    <text x="426" y="34" text-anchor="middle" font-size="12" font-weight="700" fill="#15803D">Sedang diproses</text>
+      <g class="a-skel" opacity="0">
+        <rect x="22" y="76" width="90" height="24" rx="12" fill="#E2E8F0"/>
+        <rect x="22" y="122" width="200" height="16" rx="8" fill="#E2E8F0"/>
+        <rect x="22" y="160" width="286" height="12" rx="6" fill="#EEF2F7"/>
+        <rect x="22" y="184" width="250" height="12" rx="6" fill="#EEF2F7"/>
+        <rect x="22" y="208" width="270" height="12" rx="6" fill="#EEF2F7"/>
+      </g>
+
+      <g class="a-result">
+        <rect x="22" y="72" width="104" height="26" rx="13" fill="#DBEAFE"/>
+        <text x="74" y="90" font-size="12" font-weight="700" fill="#1D4ED8" text-anchor="middle">Infrastruktur</text>
+        <rect x="134" y="72" width="108" height="26" rx="13" fill="#EF9F27"/>
+        <text x="188" y="90" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">Urgensi tinggi</text>
+
+        <text x="22" y="132" font-size="18" font-weight="700" fill="#1E2A4A">Jalan rusak dekat pasar</text>
+        <text x="22" y="166" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1">TERJEMAHAN</text>
+        <text x="22" y="190" font-size="14" fill="#1E2A4A">Jalan rusak di dekat pasar, banyak</text>
+        <text x="22" y="212" font-size="14" fill="#1E2A4A">lubang dan berbahaya pada malam</text>
+        <text x="22" y="234" font-size="14" fill="#1E2A4A">hari. Mohon segera diperbaiki.</text>
+
+        <text x="22" y="272" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1">LOKASI TERDETEKSI</text>
+        <rect x="22" y="282" width="108" height="26" rx="13" fill="#F1F5F9"/>
+        <text x="76" y="300" font-size="12" font-weight="600" fill="#1E2A4A" text-anchor="middle">Pasar Induk</text>
+
+        <line x1="22" y1="326" x2="308" y2="326" stroke="#E2E8F0"/>
+        <text x="22" y="358" font-size="13" fill="#64748B">Status</text>
+        <g class="a-baru"><rect x="214" y="338" width="94" height="28" rx="14" fill="#DBEAFE"/>
+          <text x="261" y="357" font-size="12" font-weight="700" fill="#1D4ED8" text-anchor="middle">Baru</text></g>
+        <g class="a-proses" opacity="1"><rect x="214" y="338" width="94" height="28" rx="14" fill="#DCFCE7"/>
+          <text x="261" y="357" font-size="12" font-weight="700" fill="#15803D" text-anchor="middle">Diproses</text></g>
+      </g>
+    </g>
   </g>
 </svg>
