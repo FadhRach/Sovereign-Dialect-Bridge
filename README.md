@@ -122,12 +122,10 @@ Jika frontend jalan di port selain 3000, tambahkan ke `CORS_ALLOWED_ORIGINS` di 
 
 ## Tim
 
-| Nama | NIM |
-|---|---|
-| Fadhlan Nur Rachman | 2802491690 |
-| Dian Rakhmawati Lestari | 2802539085 |
-| Matthew Ken Susanto | 2802407736 |
-| Nasauramecca Nour Haqqanshah Shodiqin | 2802541921 |
-| Bintang Nur Fadhlillah | 2802536083 |
-
-<!-- contributors check -->
+| Nama | NIM | Job Desc |
+|---|---|---|
+| Fadhlan Nur Rachman | 2802491690 | Project Manager & AI Architect |
+| Dian Rakhmawati Lestari | 2802539085 | AI Engineer & Fullstack Developer |
+| Matthew Ken Susanto | 2802407736 | AI Engineer & Backend Developer |
+| Nasauramecca Nour Haqqanshah Shodiqin | 2802541921 | UI/UX & Frontend Developer |
+| Bintang Nur Fadhlillah | 2802536083 | Quality Assurance & Testing |
