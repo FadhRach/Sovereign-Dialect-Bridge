@@ -129,3 +129,5 @@ Jika frontend jalan di port selain 3000, tambahkan ke `CORS_ALLOWED_ORIGINS` di 
 | Matthew Ken Susanto | 2802407736 |
 | Nasauramecca Nour Haqqanshah Shodiqin | 2802541921 |
 | Bintang Nur Fadhlillah | 2802536083 |
+
+<!-- contributors check -->
